@@ -1,0 +1,11 @@
+__pycache__/
+*.egg-info/
+.venv/
+node_modules/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+TODO.md
+*PLAN.md
+/docs/preferences-design.md

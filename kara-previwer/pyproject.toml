@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kara-previwer"
+version = "0.1.0"
+description = "Local review sessions for external karaoke templates"
+requires-python = ">=3.11"
+
+[project.scripts]
+review = "kara_previwer.cli:main"
+
+[tool.setuptools.package-data]
+kara_previwer = ["web/*", "web/ui/*"]
+
+[tool.setuptools]
+packages = ["kara_previwer"]
