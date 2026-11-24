@@ -19,3 +19,24 @@ class SegmentTest(unittest.TestCase):
         for invalid in [-1, 517, 2.5, True]:
             with self.assertRaises(ValueError):
                 segment_clip(clip, invalid)
+
+    def test_whole_preview_and_saved_captures_use_the_same_geometry_and_clock(self):
+        import tempfile
+        from pathlib import Path
+        from types import SimpleNamespace
+
+        from kara_previwer.bundle import resource_path
+        from kara_previwer.server import preview_window
+
+        proposal = {"clip": {"start": 14, "duration": 17.21, "fps": 30, "edit_segment_frames": 60},
+                    "values": {"size": 50}, "config": "recipe"}
+        values = {"size": 55}
+        with tempfile.TemporaryDirectory() as temporary:
+            session = SimpleNamespace(root=Path(temporary))
+            key = resource_path(proposal, values)
+            self.assertEqual(preview_window(session, proposal, values, 90, presented=key)["start"], 16)
+            (session.root / key).mkdir(parents=True)
+            for options in ({"whole": True}, {"presented": key}):
+                result = preview_window(session, proposal, values, 90, **options)
+                self.assertEqual((result["start"], result["duration"]), (14, 17.21))
+            self.assertEqual(preview_window(session, proposal, {"size": 56}, 90, presented=key)["start"], 16)

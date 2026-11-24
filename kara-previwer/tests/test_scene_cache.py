@@ -27,10 +27,13 @@ class SceneCacheTest(unittest.TestCase):
             patch.object(compiler, "_scene", None),
         ):
             self.assertEqual(compiler.run(dict(job, cached_only=True)), {"miss": True})
+            self.assertEqual(compiler.run(dict(job, prepare_scene=True)), {})
+            recipe.build.return_value.prepare_hook.return_value.export.assert_not_called()
             compiler.run(job)
             compiler.run(dict(job, start=24, cached_only=True))
             recipe.build.assert_called_once_with("whole song", {"size": 100})
-            self.assertEqual(recipe.build.return_value.export_hook.call_count, 2)
+            recipe.build.return_value.prepare_hook.assert_called_once_with()
+            self.assertEqual(recipe.build.return_value.prepare_hook.return_value.export.call_count, 2)
             for changed in [
                 {"script": "v2"},
                 {"krc": "v2"},

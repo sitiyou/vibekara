@@ -1,14 +1,32 @@
 ---
 name: vibekara-export
-description: 从已打轴 KRC/MIDI 或采用的外部模板导出整曲 hook 和原唱、伴奏 karaoke 视频。
+description: 从 Namioto 工程和模板或评审采用快照构建整曲 Hook，并按请求合成原唱、伴奏或可视化视频。
 ---
 
-正式视频默认导出为 **1920×1080、60 fps**。用户或交付要求指定其他规格时按指定值。评审片段的尺寸和帧率只用于预览。先核对歌曲记录的时间基准、MIDI 类型与交付规格。无样式要求时，把[基础外部模板](assets/template.py)复制到打轴阶段交付的 `song_input.py` 旁，用安装了 Namioto 和 kara-templater 的解释器运行 `python template.py`。该入口读取歌曲数据并调用 `Scene.export_hook`，在歌曲目录输出 `lyrics.hook`。根据交付规格调整导出帧率。复查实际字体对全曲文字和注音的覆盖。
+# 构建整曲 Hook 与视频
 
-定制方案使用评审采用的外部模板、完整选值和输入快照。评审编译器从 KRC/MIDI 构造同样的语义输入；让其 MIDI 模式、声部映射和偏移与打轴交接一致，预唱提前量只应用一次。
+按请求决定只交付 Hook 还是继续合成视频。默认视频规格为 **1920×1080、60 fps**。用户指定时采用目标规格。交付帧率用于生成 Hook 和视频，设计画布的比例应与 Hook 所叠加的画面一致。
 
-低清动画 MV 升至 1080p 时，优先从最高质量的原始画面试用 **2× Adore**。用含细线、小字和运动的短片段与普通缩放同帧比较，检查细节、色彩、闪烁与过锐。按原帧率做一次超分，保留宽高比、色彩范围和时间基准；如模型需要补齐输入尺寸，推理后按倍率裁掉补边。随后缩放至交付尺寸、对齐音画并转换帧率，最后叠加目标分辨率的字幕。可复用同一份超分画面制作原唱和伴奏版本。
+在[整曲工作流](../vibekara/SKILL.md#从素材到交付)中，样式评审采用后，以采用快照的模板、选值和打轴输入重建交付 Hook。预览与交付帧率可以不同，各自按目标帧率编译。
 
-沿用歌曲构建入口或使用 FFmpeg 的 Vulkan/libplacebo custom_shader_path 叠加整曲 hook。先按成片帧率生成画面，等比缩放并补边至目标尺寸，再叠加同帧率的 hook，使字幕在每个输出帧上重新绘制。静态封面按目标帧率循环到音频结尾。伴奏版复用视频流并换入同时间基准的音轨。用 ffprobe 检查分辨率、帧率和音画时长；抽查开头、采用帧对应的原曲时间和末尾。记录实际交付文件及命令。用户明确要求时才投稿。
+复用工程或采用快照指定的编译环境。评审与导出都应加载同一份 Namioto 和 kara-templater。[验证编译环境](../../docs/preferences.md#验证字幕编译环境)
 
-例如 `review export SESSION video.hook --snapshot approved` 同时保存已采用模板源、歌曲 KRC/MIDI 和构建参数。稍后运行 `review rebuild approved video.hook`。迁到另一套运行环境时用 --python 指向装有模板依赖的解释器。
+| 已有输入 | 构建方式 |
+| --- | --- |
+| `.nto`，使用基础样式 | 用装有 Namioto 和 kara-templater 的 Python 运行 [`render_hook.py`](assets/render_hook.py) `SONG.nto lyrics.hook`。 |
+| `.nto` 和指定设计 | 在导出脚本中调用 [`load_nto()`](assets/import_nto.py)，将返回的 `Document` 交给模板。脚本定义样式、轨道、特效和输出格式。已为评审注册的模板可用 `--script TEMPLATE.py --template ID` 构建整曲。 |
+| 已采用快照 | 用 Python 运行 [rebuild_hook.py](../../kara-previwer/scripts/rebuild_hook.py) `APPROVED lyrics.hook`。重建沿用快照帧率，换解释器时加 `--python`。有采用事件但缺快照时，由评审阶段补齐。 |
+
+直接构建用 `--fps` 覆盖默认帧率，按需使用 `--offset-ms` 和 `--harmony-tracks`。采用方案改变交付帧率时，从同一采用事件保存对应帧率的新快照，然后重建。回放抽查首次入唱、声部交接、换行和实际字体覆盖。
+
+自定义导出见 [Python 示例](../../README.md#从-python-导入-namioto-工程)。
+
+## 合成与续作
+
+用现有歌曲构建入口，或按 kara-templater 的 [Hook 播放指南](https://github.com/sitiyou/python-kara-templater/blob/main/docs/guides/gpu-rendering.md) 使用 FFmpeg 的 Vulkan/libplacebo 叠加。视频沿用原曲零点，先生成目标帧率和画幅的画面，再叠加同帧率的 Hook。只有音频时，优先用已确认的封面。用户未指定画面且无可用封面时，可用匹配画布比例的中性底色。
+
+伴奏版使用对齐后的同版官方伴奏。只有缺少同版官方伴奏时，才采用经素材阶段验收的分离伴奏。时钟一致时，复用原唱版的视频流并换入所选伴奏。
+
+续作时逐项检查本次要求的产物。采用快照可以重建 Hook，成片仍需核验。只为缺失或失效的产物继续构建。用 ffprobe 核对视频实际帧率、分辨率、音画时长，抽查采用帧对应的原曲时间和结尾。把验收后的文件、规格和构建命令写入 `production.md` 的交付段。
+
+需要超分或音高可视化时，见[媒体准备](../../docs/media.md#可选的视频处理)。

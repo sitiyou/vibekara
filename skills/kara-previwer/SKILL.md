@@ -1,16 +1,20 @@
 ---
 name: kara-previwer
-description: 用实际歌曲片段评审外部 karaoke 模板，发布多方向提案、接收截帧反馈并保存采用快照。
+description: 在浏览器交给用户审核首次制作或修改的 karaoke 字幕，支持比较、调参、截帧反馈和采用快照。
 ---
 
-使用 review CLI。按 kara-templater 指南设计外部模板，遵守已指定的字体、背景与动效。在同一有入唱、注音和换行的片段提供可明显区分的方向，说明画面上能看到的差异。字体候选用本曲歌词试样，选渲染环境实际支持的字族和字重。允许混搭与自由意见；下一轮围绕用户实际提交的选值，只突出所提细节。
+# 评审外部模板
 
-运行 review create 歌名、review publish SESSION proposal.json --base 0，交付会话网址。独立宿主使用 review wait SESSION --after ID --timeout 30，首次 ID 为 0；超时继续等。按事件顺序处理，重复 token 读取已有结果。反馈先 claim，读其完整参数与所附图，再按反馈发布修订；采用事件里的版本和值决定导出。落盘成功后才把游标及 token 写回 production.md。中断后用 review state 和 review pending 核对记录并从游标续等。宿主推送可唤醒同一处理流程。
+使用已保存的 `.nto` 和对齐后的媒体提交样式审核。设计交给 `kara-templater` 作者指南。评审和整曲导出复用同一个 Scene 构建函数。后续需要整曲交付时，从第一版起就用 `register(registry)` 注册可编译模板，并在方案中填写 `compiler.project`。[可运行模板](../vibekara-export/assets/template.py) · [方案格式](../../kara-previwer/README.md#方案文件)
 
-先运行 `review catalog` 查询控件。首轮以 alternatives 列出同片段的其他 manifest，以 presets 混搭当前模板的参数。提供 sample 的实际歌词、fonts 候选和参数 groups。收到反馈时将 values 差量、focus 和 summary 写入 patch.json，执行 `review revise SESSION patch.json --base VERSION --feedback TOKEN`。若需新增视觉能力，更新外部模板后重新 publish。保存的模板可从网页「收藏」选择，在本曲生成新版本。
+设计方向开放时，首轮用同一段画面比较几个主机制有明显差异的完整方案，让用户先选方向。查效果目录了解有哪些机制，再按本曲筛选。选定方向后根据反馈开放细调。各方案沿用默认的双行左右交替布局，用户主动要求时再调整布局。用户指定了唯一效果或已经进入定向修订时，按指定范围提交。[首轮方案、导唱符和验收](../../docs/first-review.md)
 
-发布前确认服务端口已监听；需要时运行 `review serve`。create、serve 与后续命令共用 root 和 port。完整方案格式与示例见仓库的 [评审器 README](../../kara-previwer/README.md)。如果旧会话采用时的字体已缺失，先列出现可解析的替代字族与字重，从歌曲快照发起新一轮评审并重新采用。
+整曲评审默认提供可拖动时间线，把起播位置设在代表性入唱前，便于核对注音和换行。有对齐的 MV 或故事板时使用带原唱音轨的无字幕 MP4，由评审器实时叠字幕。指定片段时只发布对应时间范围。比较多个候选时共用媒体和时间区间，写清可见差异并核对字体候选。查询控件用 [catalog.py](../../kara-previwer/scripts/catalog.py)。[画面与时间线](../../kara-previwer/README.md#整曲时间线) · [复用收藏](../../kara-previwer/README.md#播放与收藏)
 
-用户明确要复用收藏时，先查 review preferences；在首轮 manifest 填 favorite ID、目标 clip 和 compiler 的 python、KRC、MIDI、本曲偏移，即可直接从收藏开始。
+## 发布、反馈与采用
 
-整曲评审优先提供可拖动的完整媒体。通常在发布时编译整曲 hook，省略 clip.segment_frames。浏览器一次加载后按媒体时间绘制，跳转无须请求字幕分段。若实测整曲资源超过设备容量，或需要缩短频繁改稿的编译等待，再用 clip.segment_frames 启用分段。用 clip.entry_frame 指向有代表性的实唱或上次反馈处。原 MV 与录音对齐后，用带音轨的整曲视频作 clip.audio 并设置 motion=true。发布后检查远处冷跳转、跨段扫色、原曲时间截帧及结尾，保留相同媒体时钟供后续修订。
+用 Python 直接运行[评审脚本](../../kara-previwer/README.md#for-ai-agents)。用相同的 root 和 port 启动 `serve.py` 和 `create_session.py`，再用 `publish.py SESSION proposal.json --base 0` 发布。打开会话验证画面、音频和字幕后，发给用户会话链接及起播位置。保留会话供用户反馈或采用，确认线程通知是否已绑定。用户要求持续处理或等待采用时，按[会话事件说明](../../kara-previwer/README.md#事件恢复与构建)持续收取事件。
+
+- 收到反馈后用 `claim_feedback.py SESSION TOKEN`，读取用户完整选值和批注图片，再用 `revise.py SESSION patch.json --base VERSION --feedback TOKEN` 发布修订。需要新增能力或替换模板时，在 patch 中填 `manifest` 指向新方案。局部修订聚焦用户实际提出的变化。
+- 收到采用后，以采用事件的版本、方向、完整选值和 token 为准。需要重建整曲时运行 `snapshot.py SESSION APPROVED`，交付规格另有帧率时加 `--fps`。交给导出阶段的是采用快照和本次输出要求。
+- 续作先运行 `session_state.py`。已有采用时核对快照。未采用时用 `pending_events.py` 查待处理事件，从本地最后处理的用户事件继续。只有反馈修订发布或采用输入保存后才记录对应事件 ID。已有处理结果时按 token 复用。将会话位置、游标和采用快照写入 `production.md` 的评审段。

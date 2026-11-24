@@ -6,9 +6,9 @@ import {
   ArrowDown01Icon,
   ArrowUp01Icon,
   Tick02Icon,
-  UnfoldMoreIcon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
+import { ChevronDown } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -53,15 +53,9 @@ function SelectTrigger({
       {...props}
     >
       {children}
-      <SelectPrimitive.Icon
-        render={
-          <HugeiconsIcon
-            icon={UnfoldMoreIcon}
-            strokeWidth={2}
-            className="pointer-events-none size-4 text-muted-foreground"
-          />
-        }
-      />
+      <SelectPrimitive.Icon className="inline-flex">
+        <ChevronDown className="pointer-events-none size-4" />
+      </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   )
 }

@@ -1,52 +1,25 @@
 // A scheduler is scoped to one revision and one set of selected values.
-export function segmentPlayer({ proposal, values, direction, api, renderer, media,
+export function segmentPlayer({ proposal, values, direction, api, requestPreview, renderer, media,
   canvas, fallback, present, redraw, status, buffered, active, resume, hookCache }) {
   const clip = proposal.clip, fps = clip.fps, width = clip.segment_frames;
   const count = Math.ceil(clip.duration * fps);
   const entries = new Map();
-  let wanted = -1, showing = -1, serial = 0, stopped = false;
+  let wanted = -1, showing = -1, lookahead = -1, serial = 0, stopped = false;
   const valid = () => !stopped && active();
   const geometry = JSON.stringify([proposal.version, direction, {...values, ...proposal.palette}]);
-  let idleTimer, warming = false;
-  const warmed = new Set();
   function requestHook(first, prefetch) {
     const key = geometry + ":" + first;
-    let request = hookCache.get(key);
-    if (!request) {
-      request = api("render", {version: proposal.version, direction, values, frame: first, prefetch});
-      hookCache.set(key, request);
-      request.catch(() => hookCache.delete(key));
-    }
-    return request;
-  }
-  // Keep only nearby GPU scenes. Other intervals are built one at a time into the
-  // server's immutable cache so a long song doesn't fill browser texture memory.
-  function scheduleIdle() {
-    clearTimeout(idleTimer);
-    if (warming || !valid()) return;
-    idleTimer = setTimeout(async () => {
-      if (!valid() || showing !== wanted || showing < 0) return;
-      const total = Math.ceil(count / width);
-      for (let step = 1; step <= total; step++) {
-        const first = ((showing / width + step) % total) * width;
-        if (warmed.has(first)) continue;
-        warming = true;
-        try {
-          await requestHook(first, true);
-          if (valid()) {
-            warmed.add(first);
-            buffered(first, Math.min(first + width, count));
-          }
-        } catch {
-          // A seek can retry a failed interval. Avoid retrying in an idle loop.
-          return;
-        } finally {
-          warming = false;
-        }
-        scheduleIdle();
-        break;
+    const hit = hookCache.get(key);
+    if (hit) return hit;
+    return requestPreview(() => {
+      let request = hookCache.get(key);
+      if (!request) {
+        request = api("render", {version: proposal.version, direction, values, frame: first, prefetch});
+        hookCache.set(key, request);
+        request.catch(() => hookCache.delete(key));
       }
-    }, 750);
+      return request;
+    }, () => valid() && (first === wanted || (prefetch && first === wanted + width)), prefetch);
   }
   function load(first, prefetch = false) {
     if (entries.has(first)) return entries.get(first);
@@ -54,6 +27,7 @@ export function segmentPlayer({ proposal, values, direction, api, renderer, medi
     const promise = (async () => {
       const {hook} = await requestHook(first, prefetch);
       if (!valid()) return;
+      if (!prefetch && first === wanted) prefetchNext(first);
       let activate, video;
       try {
         const r = renderer();
@@ -62,13 +36,18 @@ export function segmentPlayer({ proposal, values, direction, api, renderer, medi
         video = (await api("native", payload)).video;
       }
       if (!valid()) return;
-      warmed.add(first);
       buffered(first, Math.min(first + width, count));
       return {activate, video, hook};
     })();
     entries.set(first, promise);
     promise.catch(() => entries.delete(first));
     return promise;
+  }
+  function prefetchNext(first) {
+    const next = first + width;
+    if (lookahead === first || next >= count) return;
+    lookahead = first;
+    load(next, true).catch(() => {});
   }
   async function switchTo(first) {
     const token = ++serial;
@@ -81,7 +60,6 @@ export function segmentPlayer({ proposal, values, direction, api, renderer, medi
       status("正在缓冲字幕");
     }, 35);
     try {
-      if (!entries.has(first) && !hookCache.has(geometry + ":" + first)) await new Promise(resolve => setTimeout(resolve, 35));
       if (!valid() || token !== serial) return;
       const entry = await load(first);
       if (!valid() || token !== serial) return;
@@ -106,8 +84,6 @@ export function segmentPlayer({ proposal, values, direction, api, renderer, medi
       redraw();
       if (resume.current) { resume.current = false; media.play().catch(() => {}); }
       for (const key of entries.keys()) if (Math.abs(key - first) > width) entries.delete(key);
-      if (first + width < count) load(first + width, true).then(scheduleIdle, scheduleIdle);
-      else scheduleIdle();
     } catch (e) {
       if (valid() && token === serial) { status(e.message); wanted = -1; }
     } finally { clearTimeout(timer); }
@@ -116,8 +92,9 @@ export function segmentPlayer({ proposal, values, direction, api, renderer, medi
     select(frame) {
       const first = Math.floor(Math.min(count - 1, Math.max(0, frame)) / width) * width;
       if (first !== wanted) switchTo(first);
+      if (!media.paused || resume.current) prefetchNext(first);
       return first === showing && first === wanted;
     },
-    stop() { stopped = true; serial++; clearTimeout(idleTimer); },
+    stop() { stopped = true; serial++; },
   };
 }

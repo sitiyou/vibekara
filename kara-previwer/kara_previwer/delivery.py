@@ -5,13 +5,23 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from .bundle import compile_job, local_config
-from .proposals import check_fonts
+from .bundle import compile_job, local_config, resolve_config
+from .proposals import check_fonts, selected
+
+
+def accepted_build(session):
+    state = session.state()
+    item = next((event for event in session.pending() if event["token"] == state["accepted"]), None)
+    if item is None:
+        raise ValueError("review has no accepted revision")
+    proposal = selected(state["revisions"][item["version"] - 1], item.get("direction", 0))
+    if "config" not in proposal:
+        raise ValueError("this precompiled review has no whole-song compiler")
+    return proposal, item
 
 
 def snapshot(session, proposal, item, fps, destination):
     config = local_config(session, proposal)
-    check_fonts(proposal, item["values"])
     manifest = {
         "session": session.root.name,
         "token": item["token"],
@@ -27,11 +37,15 @@ def snapshot(session, proposal, item, fps, destination):
     with tempfile.TemporaryDirectory(dir=destination.parent) as staging:
         root = Path(staging) / "snapshot"
         root.mkdir()
-        for key, name in (
-            ("script", "recipe/template.py"),
-            ("midi", "song.mid"),
-            ("krc", "song.krc"),
-        ):
+        files = [("script", "recipe/template.py")]
+        if "project" in config:
+            files.append(("project", "song.nto"))
+        elif "song_input" in config:
+            shutil.copytree(config["song_input"], root / "song")
+            manifest["config"]["song_input"] = "song"
+        else:
+            files.extend((("midi", "song.mid"), ("krc", "song.krc")))
+        for key, name in files:
             (root / name).parent.mkdir(exist_ok=True)
             shutil.copyfile(config[key], root / name)
             manifest["config"][key] = name
@@ -40,26 +54,37 @@ def snapshot(session, proposal, item, fps, destination):
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(Path(config["script"]).parent / name, dest)
         (root / "accepted.json").write_text(
-            json.dumps(manifest, ensure_ascii=False, indent=2)
+            json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
         )
-        if destination.exists():
+        if not destination.exists():
+            try:
+                root.rename(destination)
+            except OSError:
+                if not destination.exists():
+                    raise
+        if root.exists():
             for file in root.rglob("*"):
-                if (
-                    file.is_file()
-                    and file.read_bytes()
-                    != (destination / file.relative_to(root)).read_bytes()
-                ):
-                    raise ValueError("snapshot destination contains a different build")
-        else:
-            root.rename(destination)
+                if file.is_file():
+                    existing = destination / file.relative_to(root)
+                    if not existing.is_file() or existing.read_bytes() != file.read_bytes():
+                        raise ValueError("snapshot destination contains a different build")
+    return {key: manifest[key] for key in ("session", "token", "version", "direction", "fps")}
 
 
-def rebuild(root, output, python=None):
-    m = json.loads((root / "accepted.json").read_text())
-    check_fonts(m, m["values"])
-    config = m["config"].copy()
-    for key in ("script", "midi", "krc"):
-        config[key] = str((root / config[key]).resolve())
+def build_hook(config, source, values, fps: int, output: Path):
+    """Publish the complete Hook and preserve the previous file on build failure."""
+    check_fonts(source, values)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=output.parent) as tmp:
+        staged = Path(tmp).resolve() / output.name
+        result = compile_job(config, values=values, fps=fps, output=str(staged))
+        staged.replace(output)
+    return result
+
+
+def rebuild(root: Path, output: Path, python: str | None = None):
+    manifest = json.loads((root / "accepted.json").read_text(encoding="utf-8"))
+    config = resolve_config(root.resolve(), manifest["config"])
     if python:
         config["python"] = python
-    return compile_job(config, values=m["values"], fps=m["fps"], output=str(output))
+    return build_hook(config, manifest, manifest["values"], manifest["fps"], output)

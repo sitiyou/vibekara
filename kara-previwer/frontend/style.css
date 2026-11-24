@@ -207,6 +207,33 @@ output[role="status"] {
   border: 1px solid #c8d2c8;
   border-radius: 7px;
 }
+.field [data-slot="select-trigger"] {
+  min-width: 136px;
+  height: auto;
+  gap: 12px;
+  padding: 6px 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: none;
+}
+.field [data-slot="select-trigger"]:hover,
+.field [data-slot="select-trigger"][aria-expanded="true"] {
+  border-color: #8fa99c;
+}
+.field [data-slot="select-trigger"]:focus-visible {
+  outline: 2px solid #416559;
+  outline-offset: 2px;
+}
+[data-slot="select-content"] {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--popover);
+  box-shadow: none;
+}
+[data-slot="select-content"]::before {
+  content: none;
+}
 .field [data-pressed],
 .field [aria-pressed="true"] {
   color: #154936;
@@ -311,8 +338,14 @@ aside {
   margin: 0;
   flex-wrap: nowrap;
 }
-.transport media-controller {
-  display: none;
+.screen #clock-controller {
+  position: absolute;
+  inset: 0;
+}
+.screen canvas,
+.screen > video {
+  position: absolute;
+  inset: 0;
 }
 .transport media-control-bar {
   flex: 1;

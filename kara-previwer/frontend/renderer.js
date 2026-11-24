@@ -1,9 +1,29 @@
 export function createRenderer(canvas) {
-  const gl = canvas.getContext("webgl2", { alpha: false, antialias: false });
+  const gl = canvas.getContext("webgl2", { alpha: true, premultipliedAlpha: true, antialias: false });
   if (!gl) throw Error("此浏览器无法使用 WebGL 2");
-  let current, background, imageUrl;
-  let videoWidth = 0, videoHeight = 0;
+  let current, imageUrl;
   const cache = new Map();
+  const programs = new Map();
+  const texturesByHash = new Map();
+  const parallel = gl.getExtension("KHR_parallel_shader_compile");
+
+  function acquire(pool, key, create, dispose) {
+    let entry = pool.get(key);
+    if (!entry) {
+      entry = { value: Promise.resolve().then(create), references: 0 };
+      pool.set(key, entry);
+    }
+    entry.references++;
+    return {
+      value: entry.value,
+      release() {
+        if (--entry.references === 0) {
+          pool.delete(key);
+          entry.value.then(dispose, () => {});
+        }
+      },
+    };
+  }
   gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
   const vertex = `#version 300 es
 out vec2 uv;
@@ -11,8 +31,8 @@ void main(){vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2); uv=vec2(p.x,1.-p.y); 
   const prefix = `#version 300 es
 precision highp float; precision highp int; precision highp sampler2D;
 in vec2 uv; out vec4 pixel;
-uniform sampler2D bgTex,KARAMASK,KARADATA; uniform float PTS;
-#define HOOKED_tex(p) texture(bgTex,p)
+uniform sampler2D bgTex,KARAMASK,KARADATA; uniform float PTS; uniform bool overlay;
+#define HOOKED_tex(p) (overlay ? vec4(0.0) : vec4(texture(bgTex,p).rgb,1.0))
 #define HOOKED_pos uv
 #define frame 1
 `;
@@ -20,8 +40,6 @@ uniform sampler2D bgTex,KARAMASK,KARADATA; uniform float PTS;
     const s = gl.createShader(type);
     gl.shaderSource(s, source);
     gl.compileShader(s);
-    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS))
-      throw Error(gl.getShaderInfoLog(s));
     return s;
   }
   function texture(unit, filter) {
@@ -34,22 +52,18 @@ uniform sampler2D bgTex,KARAMASK,KARADATA; uniform float PTS;
       gl.texParameteri(gl.TEXTURE_2D, param, gl.CLAMP_TO_EDGE);
     return t;
   }
+  const background = texture(0, gl.LINEAR);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
   async function load(key, palette) {
     const base = key + "/";
-    const files = await Promise.all(
-      ["textures.json", "scene.frag", "KARAMASK.bin", "KARADATA.bin"].map(
-        async (ext) => {
-          const r = await fetch(base + ext);
-          if (!r.ok) throw Error("片段加载失败");
-          return r;
-        },
-      ),
-    );
-    const [sizes, frag, mask, data] = await Promise.all([
-      files[0].json(),
-      files[1].text(),
-      files[2].arrayBuffer(),
-      files[3].arrayBuffer(),
+    async function resource(name) {
+      const response = await fetch(base + name);
+      if (!response.ok) throw Error("片段加载失败");
+      return response;
+    }
+    const [sizes, frag] = await Promise.all([
+      resource("textures.json").then(r => r.json()),
+      resource("scene.frag").then(r => r.text()),
     ]);
     const limit = gl.getParameter(gl.MAX_TEXTURE_SIZE);
     if ([...sizes.KARAMASK, ...sizes.KARADATA].some(size => size > limit))
@@ -86,49 +100,66 @@ uniform sampler2D bgTex,KARAMASK,KARADATA; uniform float PTS;
               "return c;}\nint preceding(",
           )
       : frag;
-    const p = gl.createProgram();
-    const vs = shader(gl.VERTEX_SHADER, vertex);
-    gl.attachShader(p, vs);
-    gl.deleteShader(vs);
-    const fs = shader(
-      gl.FRAGMENT_SHADER,
-      prefix + body + "\nvoid main(){pixel=hook();}",
-    );
-    gl.attachShader(p, fs);
-    gl.deleteShader(fs);
-    gl.linkProgram(p);
-    if (!gl.getProgramParameter(p, gl.LINK_STATUS))
-      throw Error(gl.getProgramInfoLog(p));
-    gl.useProgram(p);
-    const textures = [];
-    for (const [i, name, format, raw] of [
-      [1, "KARAMASK", gl.R8, mask],
-      [2, "KARADATA", gl.RGBA32F, data],
-    ]) {
-      textures.push(texture(i, i === 1 ? gl.LINEAR : gl.NEAREST));
-      gl.texImage2D(
-        gl.TEXTURE_2D,
-        0,
-        format,
-        ...sizes[name],
-        0,
-        i === 1 ? gl.RED : gl.RGBA,
-        i === 1 ? gl.UNSIGNED_BYTE : gl.FLOAT,
-        i === 1 ? new Uint8Array(raw) : new Float32Array(raw),
-      );
-      gl.uniform1i(gl.getUniformLocation(p, name), i);
+    const program = acquire(programs, body, async () => {
+      const p = gl.createProgram();
+      const vs = shader(gl.VERTEX_SHADER, vertex);
+      const fs = shader(gl.FRAGMENT_SHADER, prefix + body + "\nvoid main(){pixel=hook();}");
+      gl.attachShader(p, vs);
+      gl.attachShader(p, fs);
+      gl.linkProgram(p);
+      try {
+        while (parallel && !gl.isContextLost() && !gl.getProgramParameter(p, parallel.COMPLETION_STATUS_KHR)) {
+          await new Promise(resolve => setTimeout(resolve, 8));
+        }
+        if (!gl.getProgramParameter(p, gl.LINK_STATUS))
+          throw Error(gl.getShaderInfoLog(fs) || gl.getShaderInfoLog(vs) || gl.getProgramInfoLog(p));
+        return p;
+      } catch (error) {
+        gl.deleteProgram(p);
+        throw error;
+      } finally {
+        gl.deleteShader(vs);
+        gl.deleteShader(fs);
+      }
+    }, p => gl.deleteProgram(p));
+    const leases = [program];
+    try {
+      const p = await program.value;
+      const textures = await Promise.all(["KARAMASK", "KARADATA"].map((name, index) => {
+        const unit = index + 1;
+        const signature = [name, sizes[name], sizes.hashes?.[name] ?? key].join("/");
+        const lease = acquire(texturesByHash, signature, async () => {
+          const raw = await (await resource(name + ".bin")).arrayBuffer();
+          const mask = index === 0;
+          const tex = texture(unit, mask ? gl.LINEAR : gl.NEAREST);
+          gl.texImage2D(gl.TEXTURE_2D, 0, mask ? gl.R8 : gl.RGBA32F, ...sizes[name],
+            0, mask ? gl.RED : gl.RGBA, mask ? gl.UNSIGNED_BYTE : gl.FLOAT,
+            mask ? new Uint8Array(raw) : new Float32Array(raw));
+          return tex;
+        }, tex => gl.deleteTexture(tex));
+        leases.push(lease);
+        return lease.value;
+      }));
+      gl.useProgram(p);
+      for (const [i, name] of ["bgTex", "KARAMASK", "KARADATA"].entries())
+        gl.uniform1i(gl.getUniformLocation(p, name), i);
+      return {
+        p,
+        textures,
+        release: () => leases.forEach(lease => lease.release()),
+        colors: names.map((name, i) => [
+          name,
+          gl.getUniformLocation(p, "reviewColor" + i),
+        ]),
+        time: gl.getUniformLocation(p, "PTS"),
+        overlay: gl.getUniformLocation(p, "overlay"),
+      };
+    } catch (error) {
+      leases.forEach(lease => lease.release());
+      throw error;
     }
-    return {
-      p,
-      textures,
-      colors: names.map((name, i) => [
-        name,
-        gl.getUniformLocation(p, "reviewColor" + i),
-      ]),
-      time: gl.getUniformLocation(p, "PTS"),
-    };
   }
-  function draw(pts, media) {
+  function draw(pts) {
     if (!current) return;
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.useProgram(current.p);
@@ -136,17 +167,6 @@ uniform sampler2D bgTex,KARAMASK,KARADATA; uniform float PTS;
       gl.activeTexture(gl.TEXTURE0 + i);
       gl.bindTexture(gl.TEXTURE_2D, tex);
     });
-    if (media && media.readyState >= 2) {
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, background);
-      if (media.videoWidth === videoWidth && media.videoHeight === videoHeight) {
-        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, media);
-      } else {
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, media);
-        videoWidth = media.videoWidth;
-        videoHeight = media.videoHeight;
-      }
-    }
     gl.uniform1f(current.time, pts);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
@@ -165,16 +185,15 @@ uniform sampler2D bgTex,KARAMASK,KARADATA; uniform float PTS;
         );
       const scene = await cache.get(key);
       let img;
-      if (url !== imageUrl || (!motion && videoWidth)) {
+      if (!motion && url !== imageUrl) {
         img = new Image();
         img.src = url;
         await img.decode();
       }
       return () => {
-        if (img && (url !== imageUrl || (!motion && videoWidth))) {
-          videoWidth = videoHeight = 0;
-          if (background) gl.deleteTexture(background);
-          background = texture(0, gl.LINEAR);
+        if (img && url !== imageUrl) {
+          gl.activeTexture(gl.TEXTURE0);
+          gl.bindTexture(gl.TEXTURE_2D, background);
           gl.texImage2D(
             gl.TEXTURE_2D,
             0,
@@ -187,6 +206,7 @@ uniform sampler2D bgTex,KARAMASK,KARADATA; uniform float PTS;
         }
         current = scene;
         gl.useProgram(scene.p);
+        gl.uniform1i(scene.overlay, Number(motion));
         for (const [name, loc] of scene.colors) {
           const parts = values[name]
             .match(/../g)
@@ -198,10 +218,7 @@ uniform sampler2D bgTex,KARAMASK,KARADATA; uniform float PTS;
           if (oldest !== key) {
             const victim = cache.get(oldest);
             cache.delete(oldest);
-            victim.then((v) => {
-              gl.deleteProgram(v.p);
-              v.textures.forEach((t) => gl.deleteTexture(t));
-            });
+            victim.then(v => v.release(), () => {});
           }
         }
       };

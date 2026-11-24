@@ -1,0 +1,126 @@
+# 媒体准备
+
+先按本地偏好定位已有素材和工具，核对工程里已有链接的目标。私有目录按项目、专辑或发行编号逐级定位。将衍生文件写入歌曲目录或工作目录，记录来源。[本地偏好和工具复用](preferences.md)
+
+## 可以提供什么
+
+从头制作时，用户最少给一项能定位目标录音的线索和想要的交付物。线索可以是歌曲目录、原唱文件、具体的歌曲或 MV 链接，也可以是歌名、歌手和已知版本。续作可以从现有 `.nto`、完整的采用快照或已有成品开始。
+
+| 交付目标 | 开始对应阶段前需要具备的输入 |
+| --- | --- |
+| 新打轴或修订 `.nto` | 新打轴需要可播放的参考录音和核对过的歌词。修订需要已有 `.nto` 及可试听的匹配录音。 |
+| 从 `.nto` 只出字幕 Hook | 已核验的 `.nto` 和选定的模板，默认可用 vibekara 的基础模板。已有采用快照时用完整快照重建，编译字幕可直接读取保存的音符时间。 |
+| 浏览器评审 | `.nto` 和可编译模板，或待评审片段的预编译 Hook。另需对应区间的音频和画面，静态画面可以用封面或底图。 |
+| 合成整曲视频 | 可用的整曲 Hook，以及所交付版本的音轨。画面可用对齐的 MV、封面或中性底色。制作伴奏版时另需对齐的伴奏轨。 |
+
+| 素材 | 可提供的格式或来源 | 用途和必要性 |
+| --- | --- | --- |
+| 参考原唱 | WAV、FLAC、MP3、OGG、Opus 等音频。也可以给 M4A、带声轨的 MP4/WebM、具体的可播放链接，或整轨音频加 `.cue`。 | 新打轴及原唱视频的时间基准。按目标工具需要从容器提取音轨或转换成 WAV。 |
+| 歌词与读音 | 粘贴文本、`.txt`、`.md`、`.lrc`、歌词本图片或 Namioto 格式的 `.krc`。 | 新打轴前需要核对歌词。已有时间戳可以辅助定位，按本次录音核对每句，日文读音有疑问时结合原唱和歌词本确认。 |
+| 已有打轴 | Namioto `.nto`。已有定时 `.ass` 可供听音校对时参考。 | 可选。复用时核对录音版本、零点和声部。 |
+| 独立人声 | 同一录音的人声轨，WAV、FLAC 等。 | 可选。用于自动转录旋律或歌词对齐，可在素材阶段从原唱分离。手动打轴可用原唱混音。 |
+| MV 或静态图 | MP4、WebM 或具体视频链接。静态图可用 PNG、JPEG、WebP。 | 可选。决定评审或成片的画面。指定 MV 时使用对应版本并对齐原唱。 |
+| 伴奏 | 同版官方伴奏的音频文件或发行链接。 | 仅伴奏版交付需要。优先使用对齐后的官方伴奏，缺少同版官方伴奏时才采用验收过的分离伴奏。 |
+
+## 缺少素材怎么补
+
+先检查用户给出的路径、歌曲目录、`production.md` 和本地偏好里的媒体库，只补本次交付需要的素材。选择素材时记录版本、来源、时长和对齐方式。[本地偏好](preferences.md)
+
+- **缺原唱。** 从用户给的具体链接、已知音源库或发行页找同版音源。整轨加 CUE 可按轨号和索引切出歌曲。只有 MV 时，可以提取其音轨作为参考原唱。若找到的专辑版、MV 剪辑版或现场版会改变歌词时间线，列出具体差异并请用户选定。[整轨和视频取材](#整轨-cue-与参考视频)
+- **缺歌词或读音。** 先找同版歌词本、官方歌词或用户已有字幕，再用歌词库补充。用实际录音核对反复、删节、间奏后的起句及读音。听不清或存在冲突的句子标为待核对。
+- **缺现成打轴。** 用已经确认的录音和歌词在 Namioto 打轴，保存为 `.nto`。需要模型辅助时准备并核对独立人声。[分离人声与伴奏](#分离人声与伴奏)
+- **缺画面。** 用户指定 MV 时，按指定版本取得画面。接受静态视频时，用核对过的同版封面。没有合适封面时可以用中性底图。
+- **缺伴奏。** 先查同一发行的 instrumental/off-vocal 音轨，用前奏、段落和结尾核对它是否匹配所选原唱。缺少同版官方伴奏且本次需要伴奏版时，才分离试听。需要修正时间零点时先测量偏移，再裁切或补齐。[对齐音频零点和时长](#对齐音频零点和时长)
+
+必要素材仍无法取得时，向用户说明缺少的是哪一项、已找到哪些可用候选，以及缺项影响哪个交付。已有足够输入的阶段可以先做。
+
+## 整轨 CUE 与参考视频
+
+整轨 CUE 用 `FILE`、`TRACK`、`INDEX 01` 确认音源和索引。时间单位为每秒 75 帧。切出本轨至下一轨的范围，最后一轨取至文件末尾。保留无损音频，用 ffprobe 查时长并试听首尾。
+
+从平台取得参考视频时先核对标题、发布者、分 P 和时长。只有需要实际文件时才下载相应分 P 或音轨。可用 `yt-dlp --no-playlist -F URL` 查看已确认链接的格式，再用 `-f` 选择音视频或单独音轨。保存来源 URL、分 P 和文件名，用 ffprobe 对照音视频流。使用内容时在成片制作记录注明实际引用方式。
+
+## 从谱面渲染故事板
+
+1. 按 beatmapset ID 取得 `.osz`，核对谱师、对应难度、`.osb` 或谱面内的故事板事件，以及随包音轨。谱面页面的游玩长度、音轨长度和故事板结束点分别核对。
+2. 用支持 osu! 故事板的渲染器录制画面，例如 Danser。关闭打击物、光标和其他游玩叠层，保留故事板的原始构图。检查首个过场和最后一个故事板指令后的画面。渲染器按最后一个打击物结束时，可仅在临时录制副本中把结束点延到故事板完整播完。[Danser](https://github.com/Wieku/danser-go)
+3. 用谱包音轨对齐原唱，再核对实际录制的音轨，扣除录制器增加的前置时间。从前、中、尾的共用乐句判断是固定偏移、变速还是剪辑差异。所选原唱尾奏较长时，让故事板自然结束后保留原有底图，并记录使用的补齐方式。
+4. 保留对齐后的无字幕画面。浏览器评审用同一原曲零点的画面加原唱，整曲交付用同一份画面叠入采用的 Hook。
+
+## 对齐音频零点和时长
+
+以最终原唱音轨 `reference.wav` 为时间基准。`target.wav` 是要对齐的音轨，例如从 MV 取出的原唱音轨或同版伴奏。先找到两份音轨共有的声音出现在各自的什么时间，再按参考音轨的时长裁切或补静音。
+
+### 测量偏移
+
+使用已安装的 `audio-offset-finder` 和 FFmpeg。缺少前者时运行 `pip install audio-offset-finder`。[软件包](https://pypi.org/project/audio-offset-finder/) · [上游用法](https://github.com/bbc/audio-offset-finder#basic-usage)
+
+```sh
+audio-offset-finder --find-offset-of target.wav --within reference.wav --json
+ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 reference.wav
+```
+
+按这个参数顺序，`time_offset` 表示**目标文件开头在参考时间线上的秒数**。`standard_score` 反映匹配峰有多明显。按上游说明，大于 10 通常较可信，低于 5 应手动复核。重复段落、混音差异或伴奏少了人声，都可能影响匹配。用有辨识度的鼓点或乐句核实结果。[上游的评分说明](https://github.com/bbc/audio-offset-finder#readme)
+
+| `time_offset` | 含义 | 对目标音轨的操作 |
+| --- | --- | --- |
+| `-2.400` 秒 | 目标比参考早开始 2.4 秒，开头多出一段 | 从目标前面裁去 2.4 秒 |
+| `+2.400` 秒 | 目标比参考晚开始 2.4 秒，缺少对应的开头 | 在目标前补 2.4 秒静音，前提是交付允许这段留空 |
+| 约 `0` 秒 | 两份音轨起点已对齐 | 只按交付需要处理尾部 |
+
+在前段、中段和末段核对可辨识的共同乐句。平移后各段的残余偏移都接近零，才视为固定偏移。若误差随时间持续变大，检查速度差。若误差只在某个剪辑点突然变化，检查段落增删。此时先确认版本或逐段处理，再统一时长。
+
+### 裁切或补静音
+
+下面假设 `ffprobe` 测得参考时长为 **24 秒**。按实测偏移选择一条，替换示例里的 `2.400` 秒或 `2400` 毫秒和参考时长。两条都输出新的无损 WAV，尾部过长时裁掉，过短时补静音。[FFmpeg 音频滤镜](https://ffmpeg.org/ffmpeg-filters.html#Audio-Filters)
+
+测得 `-2.400` 秒时裁切开头。
+
+```sh
+ffmpeg -n -i target.wav -map 0:a:0 \
+  -af 'atrim=start=2.400,asetpts=N/SR/TB,apad=whole_dur=24,atrim=duration=24' \
+  -c:a pcm_s24le aligned.wav
+```
+
+测得 `+2.400` 秒时在前面补静音。偏移约为零时省略 `adelay`。
+
+```sh
+ffmpeg -n -i target.wav -map 0:a:0 \
+  -af 'adelay=2400:all=1,apad=whole_dur=24,atrim=duration=24,asetpts=N/SR/TB' \
+  -c:a pcm_s24le aligned.wav
+```
+
+复测输出的偏移和时长。
+
+```sh
+audio-offset-finder --find-offset-of aligned.wav --within reference.wav --json
+ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 aligned.wav
+```
+
+确认整体偏移接近零、时长与参考一致，再试听前、中、后段。若整曲里有重复段落，可在参考和输出中从相同时间点各取一段，再分别测量残余偏移。在 `production.md` 记录参考文件、原始 `time_offset`、实际裁切或补静音的量、输出路径和核对结果。渲染沿用原唱时间线，`offset_ms` 留给另有要求的歌词时序调整。
+
+## 分离人声与伴奏
+
+自动转录旋律或对齐歌词时，优先使用已有的同版独立人声轨。只有混音时，用 `pymss` 从最终原唱提取人声，交给 Namioto 做分析。纯手动打轴可以直接使用原唱混音。[pymss 安装说明](https://github.com/pymss-project/pymss#install)
+
+伴奏版有同版官方伴奏时，使用对齐后的官方音轨。只有缺少同版官方伴奏时，才采用经试听核对的分离伴奏。即使为打轴分离过人声，伴奏版依然按这条规则选音轨。
+
+| 用途 | pymss 模型 ID | 使用哪条音轨 |
+| --- | --- | --- |
+| 默认分离人声和伴奏 | `model_bs_roformer_ep_368_sdr_12.9628` | 从原唱混音分离 `Vocals` 和 `Instrumental`。人声轨用于打轴。缺少同版官方伴奏时，试听 `Instrumental` 作为交付候选。 |
+| 缺少同版官方伴奏，且默认模型的伴奏有明显残留人声 | `bs_roformer_inst_hyperacev2` | 从原唱混音提取 `instrument`，对照试听残留人声和乐器细节。 |
+| 主唱和和声重叠，影响单声部打轴 | `model_mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956` | 用已提取的 `Vocals` 再分离，分别试听 `karaoke`（主唱）和 `other`（剩余声部）。 |
+
+用已有 `pymss` 和模型缓存从原唱混音分离。缺少工具时运行 `pip install pymss`，推理会下载缺少的权重和配置。[pymss 推理用法](https://github.com/pymss-project/pymss#cli-inference) · [模型目录](https://github.com/pymss-project/pymss/blob/main/pymss/resources/model_catalog.json)
+
+```sh
+pymss infer model_bs_roformer_ep_368_sdr_12.9628 --source huggingface \
+  -i reference.wav -o stems --device auto --format wav
+```
+
+示例输出 `stems/reference_Vocals.wav` 和 `stems/reference_Instrumental.wav`。保持分离音轨和原唱共用零点。用 `ffprobe` 对照时长，试听开头、中段和结尾的字头、尾音及声部交接。分离后的音轨内容差异较大时，用能听清的共同瞬态核对时间。在 `production.md` 记下模型 ID、所用音轨和核对结果。成片的原唱版沿用原唱混音，伴奏版标明伴奏是官方音源还是模型分离结果。
+
+## 可选的视频处理
+
+- **超分。** 低清动画需要提升画质时，在细线、小字和运动片段比较普通缩放与 2× 超分。保留原始帧率、宽高比和色彩范围。先裁回超分有效画面，再按交付规格缩放并叠字。现有本机实现见[本地偏好](preferences.md)。
+- **音高轨。** 用 vibekara 的 [`midi_visualizer.py`](../skills/vibekara-export/assets/midi_visualizer.py) `SONG.nto lyrics.hook --fps FPS --out lyrics-with-pitch.hook` 合并旋律与整曲单 pass Hook。按需用 `--channel` 选择工程里的旋律渠道，用 `--offset-ms` 应用与歌词相同的交付偏移。有单独的旋律 MIDI 时也可直接作为输入。确认音符到达标线的时刻，并输出独立版本。

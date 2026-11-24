@@ -15,19 +15,35 @@ from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Event, Lock, Thread
+from typing import cast
 from urllib.parse import parse_qs, urlsplit
 
 from .bundle import (
     compile_job,
     compiled,
+    editing_clip,
     local_config,
     native_preview,
+    resource_path,
     segment_clip,
     validate_values,
 )
 from .preferences import Preferences
 from .proposals import check_fonts, decorate, reuse, save_package, selected
 from .store import Conflict, Session
+
+
+def preview_window(session, proposal, values, frame, *, whole=False, presented=None):
+    clip = editing_clip(proposal, values)
+    window = segment_clip(clip, frame)
+    if "segment_frames" in clip and "segment_frames" not in proposal["clip"]:
+        if whole:
+            return clip
+        if presented and "config" in proposal:
+            path = resource_path(proposal, values)
+            if presented == path and (session.root / path).is_dir():
+                return clip
+    return window
 
 
 def snapshot(session, data, width, height):
@@ -47,6 +63,15 @@ def snapshot(session, data, width, height):
     return "assets/" + target.name
 
 
+class ReviewServer(ThreadingHTTPServer):
+    def __init__(self, root: Path, port: int, executor: ThreadPoolExecutor):
+        super().__init__(("127.0.0.1", port), Handler)
+        self.root = root
+        self.executor = executor
+        self.warm_lock = Lock()
+        self.warmed: set[str] = set()
+
+
 class Handler(BaseHTTPRequestHandler):
     def respond(self, value, status=200):
         data = json.dumps(value, ensure_ascii=False).encode()
@@ -58,17 +83,18 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def dispatch(self):
+        server = cast(ReviewServer, self.server)
         host = self.headers.get("Host", "")
         if host not in (
-            f"127.0.0.1:{self.server.server_port}",
-            f"localhost:{self.server.server_port}",
+            f"127.0.0.1:{server.server_port}",
+            f"localhost:{server.server_port}",
         ):
             return self.respond({"error": "local host required"}, 403)
         url = urlsplit(self.path)
         match = re.fullmatch(r"/s/([a-f0-9]{32})/(.*)", url.path)
         if not match:
             return self.respond({"error": "unknown session URL"}, 404)
-        session = Session(self.server.root / match[1])
+        session = Session(server.root / match[1])
         if not session.db.exists():
             raise FileNotFoundError
         route = match[2]
@@ -109,13 +135,13 @@ class Handler(BaseHTTPRequestHandler):
             ):
                 decorate(proposal, require_selected=False)
             check_fonts(proposal, values)
-            if "config" in proposal:
-                compile_job(
-                    local_config(session, proposal), describe=True, values=values
-                )
             # Agent only receives values actually rendered by this revision.
-            clip = proposal["clip"]
-            window = segment_clip(clip, data.get("frame", clip.get("entry_frame", 0)))
+            clip = editing_clip(proposal, values)
+            window = preview_window(
+                session, proposal, values, data.get("frame", clip.get("entry_frame", 0)),
+                whole=route == "render" and data.get("whole") is True,
+                presented=data.get("hook"),
+            )
             segment = {**proposal, "clip": window}
             initial = segment_clip(clip, clip.get("entry_frame", 0))
             if values == proposal.get("values", {}) and window == initial:
@@ -170,7 +196,7 @@ class Handler(BaseHTTPRequestHandler):
                     design = selected(
                         state["revisions"][revision - 1], frame.get("direction", 0)
                     )
-                    clip = design["clip"]
+                    clip = editing_clip(design, frame["values"])
                     validate_values(design, frame["values"])
                     if (frame["fps"], frame["start"], frame["clip"]) != (
                         clip["fps"],
@@ -189,7 +215,9 @@ class Handler(BaseHTTPRequestHandler):
                             "capture timestamp differs from its frame number"
                         )
                     if "segment_frames" in clip:
-                        capture_window = segment_clip(clip, frame["frame"])
+                        capture_window = preview_window(
+                            session, design, frame["values"], frame["frame"], presented=frame["hook"]
+                        )
                         expected = compiled(
                             session, {**design, "clip": capture_window}, frame["values"]
                         )
@@ -216,10 +244,10 @@ class Handler(BaseHTTPRequestHandler):
             if state["revisions"]:
                 p = state["revisions"][-1]
                 if "config" in p:
-                    with self.server.warm_lock:
-                        if p["config"] not in self.server.warmed:
-                            self.server.warmed.add(p["config"])
-                            self.server.executor.submit(
+                    with server.warm_lock:
+                        if p["config"] not in server.warmed:
+                            server.warmed.add(p["config"])
+                            server.executor.submit(
                                 compile_job, local_config(session, p), warm=True
                             )
             for revision in state["revisions"]:
@@ -320,13 +348,9 @@ class Handler(BaseHTTPRequestHandler):
 
 def serve(root, port):
     with (
-        ThreadingHTTPServer(("127.0.0.1", port), Handler) as server,
         ThreadPoolExecutor(max_workers=1) as executor,
+        ReviewServer(root, port, executor) as server,
     ):
-        server.executor = executor
-        server.warm_lock = Lock()
-        server.warmed = set()
-        server.root = root
         from .notify import watch
 
         stop = Event()

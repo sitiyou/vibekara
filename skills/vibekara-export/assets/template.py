@@ -1,31 +1,51 @@
-"""Basic external recipe. Copy beside song_input.py for a standalone build."""
+"""Basic Hook recipe for direct builds and interactive review."""
 
-from kara_templater import Document, KaraokeEffects, KaraokeRows, Style, Track, prepare_tracks
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import TYPE_CHECKING
+
+from kara_templater import (
+    Document,
+    KaraokeEffects,
+    KaraokeRows,
+    Scene,
+    Style,
+    Track,
+    build_lyric_scene,
+)
+
+if TYPE_CHECKING:
+    from namioto.karaoke.song import TemplateSong
+    from namioto.karaoke.templates import Registry
 
 
-def build(song, values):
+def build(document: Document, *, preview_interval: tuple[float, float] | None = None) -> Scene:
     styles = tuple(
         Style(name=name, fontname="sans-serif", fontsize=size)
         for role in ("default", "top")
         for name, size in ((role, 100), (role + "-furigana", 45))
     )
-    document = Document.create(width=1920, height=1080, styles=styles)
     effects = (KaraokeEffects(),)
     tracks = (
-        Track(id="lead", source=lambda line: line.style != "top", effects=effects),
-        Track(id="harmony", source=lambda line: line.style == "top",
-              layout=KaraokeRows(anchor="top"), effects=effects),
+        Track(id="lead", source=lambda line: line.style != "top", styles=styles, effects=effects),
+        Track(
+            id="harmony",
+            source=lambda line: line.style == "top",
+            layout=KaraokeRows(anchor="top"),
+            styles=styles,
+            effects=effects,
+        ),
     )
-    return prepare_tracks(document, inputs=song.sources, tracks=tracks, bpm=song.bpm)
+    return build_lyric_scene(document, tracks=tracks, preview_interval=preview_interval)
 
 
-def register(registry):
-    registry.add(id="basic", title="Basic karaoke", semantic=True, build=build)
+def _build_review(song: TemplateSong, _values: Mapping[str, object]) -> Scene:
+    document = Document.create(
+        width=1920, height=1080, lyric_sources=song.sources, bpm=song.bpm,
+    )
+    return build(document, preview_interval=song.preview_interval)
 
 
-if __name__ == "__main__":
-    from pathlib import Path
-
-    from song_input import load_song
-
-    build(load_song(), {}).export_hook(Path(__file__).with_name("lyrics.hook"), fps=60)
+def register(registry: Registry) -> None:
+    registry.add(id="basic", title="Basic karaoke", formats=("hook",), semantic=True, build=_build_review)

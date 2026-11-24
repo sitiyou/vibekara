@@ -9,7 +9,6 @@ export default defineConfig({
   esbuild: { jsx: "automatic" },
   resolve: {
     alias: {
-      "@/registry/default/ui": local("./frontend/cult"),
       "@": local("./frontend"),
     },
   },

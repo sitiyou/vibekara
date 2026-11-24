@@ -12,9 +12,10 @@ CATALOG = {
     "presets": "title, description, values",
     "focus": "parameter names emphasized this round",
     "groups": "mapping from display title to parameter names",
+    "percent_of": "mapping from integer percentage fields to integer size fields",
     "fonts": "mapping from parameter name to ordered fontconfig family or full names",
     "sample": "actual lyric excerpt used to preview fonts",
-    "favorite": "saved template ID from review preferences; supply target clip and song compiler inputs",
+    "favorite": "saved template ID from preferences.py; supply target clip and compiler.project",
     "parameters": ["choice", "color", "bool", "int", "float", "text"],
 }
 
@@ -95,6 +96,14 @@ def decorate(p, *, require_selected=True):
     for group in [p.get("focus", []), *p.get("groups", {}).values()]:
         if not isinstance(group, list) or not set(group) <= names:
             raise ValueError("unknown focus or group field")
+    percent_of = p.get("percent_of", {})
+    integers = {f["name"] for f in p["parameters"] if f["kind"] == "int"}
+    if not isinstance(percent_of, dict) or any(
+        not isinstance(size, str) or percent not in integers
+        or size not in integers or size in percent_of
+        for percent, size in percent_of.items()
+    ):
+        raise ValueError("percent_of must link integer percentages to integer sizes")
     return p
 
 
@@ -105,17 +114,15 @@ def media_clock(clip):
 def directions(session, manifest, inherited):
     primary = prepare(session, manifest, inherited)
     if "config" in primary and not primary.get("sample"):
-        from .bundle import local_config
+        from .bundle import local_config, lyrics_path
 
-        krc = Path(local_config(session, primary)["krc"]).read_text()
-        primary["sample"] = next(
-            (
-                re.sub(r"\[[^]]*\]", "", line)
-                for line in krc.splitlines()
-                if line.strip()
-            ),
-            "",
-        )
+        config = local_config(session, primary)
+        if "project" not in config:
+            krc = lyrics_path(config).read_text(encoding="utf-8")
+            primary["sample"] = next(
+                (re.sub(r"\[[^]]*\]", "", line) for line in krc.splitlines() if line.strip()),
+                "",
+            )
     decorate(primary)
     alternatives = primary.pop("alternatives", [])
     primary["directions"] = []
@@ -216,8 +223,9 @@ def save_package(session, option, values):
         "values": values,
         "fonts": option.get("fonts", {}),
         "faces": option.get("faces", {}),
+        "percent_of": option.get("percent_of", {}),
         "dependencies": list(
-            dict.fromkeys(["namioto", "kara-templater", *cfg.get("dependencies", [])])
+            dict.fromkeys(["namioto", "kara-templater>=1.1.0,<2", *cfg.get("dependencies", [])])
         ),
         "resources": cfg.get("resources", []),
     }
@@ -247,6 +255,7 @@ def reuse(session, option, package, base):
         "values": meta["values"],
         "fonts": meta["fonts"],
         "faces": meta.get("faces", {}),
+        "percent_of": meta.get("percent_of", {}),
         "compiler": cfg,
         "summary": "从我的模板开始",
         "sample": option.get("sample", ""),

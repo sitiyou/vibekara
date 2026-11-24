@@ -1,12 +1,12 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { HaloSegmented } from "./cult/halo-segmented";
 import {
-  HaloSelect,
-  HaloSelectTrigger,
-  HaloSelectValue,
-  HaloSelectItem,
-  HaloSelectContent,
-} from "./cult/halo-select";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./cult/base-select";
 import { ColorPicker } from "./cult/color-picker";
 
 function rgb(color) {
@@ -15,7 +15,50 @@ function rgb(color) {
   return ctx.fillStyle.slice(1).toUpperCase();
 }
 
-export function Field({ field: f, value, change, fonts, sample }) {
+function NumericRange({ id, field, value, change, onDraft, referenceSize }) {
+  const input = useRef(null);
+  const [draft, setDraft] = useState(null);
+  useEffect(() => {
+    const slider = input.current;
+    // The browser's change event commits a range gesture. React's onChange
+    // also handles input events while the thumb is moving.
+    function commit() {
+      const next = slider.valueAsNumber;
+      setDraft(null);
+      onDraft?.(null);
+      if (next !== value) change(next);
+    }
+    slider.addEventListener("change", commit);
+    return () => slider.removeEventListener("change", commit);
+  }, [change, onDraft, value]);
+  const shown = draft ?? value;
+  return (
+    <>
+      <input
+        ref={input}
+        id={id}
+        type="range"
+        min={field.low}
+        max={field.high}
+        step={field.step || (field.kind === "int" ? 1 : 0.01)}
+        value={shown}
+        onChange={(event) => {
+          if (event.nativeEvent.type === "input") {
+            const next = event.currentTarget.valueAsNumber;
+            setDraft(next);
+            onDraft?.(next);
+          }
+        }}
+      />
+      <output htmlFor={id}>
+        {shown}{field.suffix}
+        {referenceSize != null && ` · ${Math.round(shown * referenceSize / 100)} px`}
+      </output>
+    </>
+  );
+}
+
+export function Field({ field: f, value, change, fonts, sample, onDraft, referenceSize }) {
   const id = "field-" + f.name;
   const [query, setQuery] = useState("");
   let control;
@@ -64,18 +107,18 @@ export function Field({ field: f, value, change, fonts, sample }) {
       items.length <= 3 ? (
         <HaloSegmented items={items} value={value} onValueChange={change} />
       ) : (
-        <HaloSelect value={value} onValueChange={change}>
-          <HaloSelectTrigger aria-label={f.caption}>
-            <HaloSelectValue />
-          </HaloSelectTrigger>
-          <HaloSelectContent>
-            {items.map((item, i) => (
-              <HaloSelectItem key={item.value} index={i} value={item.value}>
+        <Select items={items} value={value} onValueChange={change}>
+          <SelectTrigger id={id}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent align="start" alignItemWithTrigger={false}>
+            {items.map((item) => (
+              <SelectItem key={item.value} value={item.value}>
                 {item.label}
-              </HaloSelectItem>
+              </SelectItem>
             ))}
-          </HaloSelectContent>
-        </HaloSelect>
+          </SelectContent>
+        </Select>
       );
   } else if (f.kind === "color") {
     const components = value.match(/../g).map((v) => parseInt(v, 16));
@@ -129,18 +172,14 @@ export function Field({ field: f, value, change, fonts, sample }) {
     );
   } else if (["float", "int"].includes(f.kind)) {
     control = (
-      <>
-        <input
-          id={id}
-          type="range"
-          min={f.low}
-          max={f.high}
-          step={f.step || (f.kind === "int" ? 1 : 0.01)}
-          value={value}
-          onChange={(e) => change(+e.target.value)}
-        />
-        <output>{value}</output>
-      </>
+      <NumericRange
+        id={id}
+        field={f}
+        value={value}
+        change={change}
+        onDraft={onDraft}
+        referenceSize={referenceSize}
+      />
     );
   } else
     control = (

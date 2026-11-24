@@ -1,6 +1,6 @@
 # vibekara
 
-vibekara 是一套给 AI agent 使用的卡拉 OK 制作指南。把歌曲和手头的素材交给 agent，它会核对录音版本、给歌词打轴，再生成逐字扫色的视频。想自己决定字幕长什么样，可以在浏览器里边听边选，直接截取需要修改的那一帧。
+vibekara 是给 AI agent 制作卡拉 OK 用的 skill。把歌曲和手头的素材交给 agent，它会核对录音版本、给歌词打轴，并提供浏览器评审。你可以边听边调整字幕，也可以直接截取需要修改的那一帧。
 
 整曲默认交付 **可编辑工程、字幕 hook 和 1080p60 原唱导练视频**。有同版伴奏时，还可以导出共用同一条字幕画面的伴奏版。
 
@@ -8,20 +8,24 @@ vibekara 是一套给 AI agent 使用的卡拉 OK 制作指南。把歌曲和手
 
 ## 开始制作
 
-安装指南后，打开支持 skills 的 agent，给它歌曲目录或素材链接，再说想要的成片。例如：
+在启用了 vibekara 的 agent 中，最少给 **一项能找到目标录音的线索**，例如歌曲目录、原唱音频、具体的歌曲或 MV 链接，或者歌名、歌手和版本。再说明要整曲视频、只要打轴工程，还是只要 Hook。已有的歌词、封面、伴奏和打轴文件可以一并提供，agent 按本次交付补齐缺项。[输入格式和缺项处理](docs/media.md#可以提供什么)
 
-> 用这个目录里的专辑音源和 MV 做卡拉 OK，原唱和伴奏各一版。字幕想要圆一点的字体，给我几个方案，在副歌那段比较。
+> 用这个 MV 做一版原唱卡拉 OK。歌词帮我找，画面就用 MV。
 
 | 阶段 | 你会得到什么 |
 | --- | --- |
 | **1. 准备素材** | 确认使用哪一版录音，配上对应的歌词、MV 或专辑封面。MV 和专辑前奏长度不同时，先校准两者的起点。 |
-| **2. 给歌词打轴** | 在 Namioto 中把歌词、读音和音符对齐，交付可编辑工程、KRC、MIDI 和供模板读取的 `song_input.py`。已有匹配的 KRC 和 MIDI，可以直接开始选样式。 |
-| **3. 确定字幕样式** | 没有样式要求时直接使用[基础外部模板](skills/vibekara-export/assets/template.py)。想定制时，agent 会在 kara-previwer 里提供外部模板方案，你可以在同一段实唱中比较字体、排版、扫色和动效。 |
-| **4. 导出整曲** | 使用最终选定的参数重建整曲 hook、合成视频，并检查入唱、换行和片尾。原唱版与伴奏版共用画面。 |
+| **2. 给歌词打轴** | 用参考录音和歌词在 Namioto 打轴，或打开已有 `.nto` 续修。保存后的 `.nto` 供评审和导出直接读取。 |
+| **3. 审核字幕样式** | 首次制作或调整样式时，agent 发来 kara-previwer 链接。方向开放时，首轮比较几套差异明显的完整设计。选定方向后，再调整入场、唱读提示、离场等细节。需要直接导出时可以明确说明。 |
+| **4. 导出整曲** | 使用已采用的方案重建整曲 Hook、合成视频，并检查入唱、换行和片尾。原唱版与伴奏版共用画面。 |
 
 评审时可以暂停、逐帧查看，再截帧留言，例如「这一拍猫爪应该已经消失了」。agent 会收到带时间点和当前选值的反馈，更新方案供你复看。点击「采用这版」会保存该次提交的参数，供正式导出使用。喜欢的模板也可以收藏到下一首歌。[评审器使用说明](kara-previwer/README.md) · [偏好与模板收藏](docs/preferences.md)
 
+[制作第一版评审](docs/first-review.md)介绍如何从曲目出发选择能直接比较的设计方向，以及发布前如何核对实际画面。
+
 继续旧工程时，把同一个歌曲目录交给 agent 即可。`production.md` 记录所用录音、打轴文件、评审进度和交付位置。
+
+本机媒体库和账号惯例可写入[本地偏好](docs/preferences.md)。[媒体准备](docs/media.md)和[投稿指南](docs/publishing.md)按需使用。
 
 ## 安装
 
@@ -36,16 +40,38 @@ for skill in "$PWD"/skills/*; do
 done
 ```
 
-按需要安装制作工具：
+先查找本机已有工具和项目环境，再安装当前阶段缺少的工具。[工具复用](docs/preferences.md#查找本机工具)
 
 - **打轴**需要 Namioto 编辑器和 CLI，并将上游的 `skills/namioto-nicokara` 链接到同一 skills 目录。[Namioto 安装说明](https://github.com/sitiyou/namioto)
-- **字幕渲染**使用 kara-templater、目标字体和 Fontconfig。编写或调整模板时，将上游的 `skills/kara-templater` 链接到同一目录。浏览器评审器需要 Python 3.11+ 和 ffprobe；运行下方命令后，打开 agent 提供的会话链接。[kara-templater](https://github.com/sitiyou/python-kara-templater) · [评审器安装与前端构建](kara-previwer/README.md#启动)
+- **字幕渲染**需要包含工程读取器的 Namioto、支持 `Document.create(lyric_sources=...)` 的 kara-templater 和目标字体。编写或调整模板时，将上游的 `skills/kara-templater` 链接到同一目录。浏览器评审服务直接从源码运行，需要 Python 3.11+、ffprobe 和 Fontconfig。[kara-templater](https://github.com/sitiyou/python-kara-templater) · [启动评审服务](kara-previwer/README.md#启动)
 - **导出视频**需要 FFmpeg、ffprobe，以及可用的 Vulkan 设备和 FFmpeg 的 `libplacebo` 滤镜。
 
+## 从 Python 导入 Namioto 工程
+
+在 vibekara 仓库根目录，用装有 Namioto 和 kara-templater 的 Python 运行[渲染脚本](skills/vibekara-export/assets/render_hook.py)。
+
 ```sh
-uv tool install ./kara-previwer
-review serve
+python skills/vibekara-export/assets/render_hook.py song.nto lyrics.hook
 ```
+
+自定义导出时，把 [import_nto.py](skills/vibekara-export/assets/import_nto.py) 放到脚本旁边。`load_nto()` 直接把保存的 `.nto` 读成内存里的 `Document`，包含歌词、分段读音、章节、声部和 BPM。导出脚本决定使用哪些字体、轨道、特效和输出格式。
+
+```python
+from kara_templater import KaraokeEffects, Style, Track, build_lyric_scene
+from import_nto import load_nto
+
+document = load_nto(
+    "song.nto",
+    styles=(Style(name="default", fontname="sans-serif", fontsize=96),),
+)
+scene = build_lyric_scene(
+    document,
+    tracks=(Track(id="lyrics", effects=(KaraokeEffects(),)),),
+)
+scene.export("lyrics.hook")
+```
+
+`document.lyric_sources` 提供逐行歌词，`source.actor` 是 MIDI 渠道编号的字符串。需要提前 100 ms 时传 `offset_ms=-100`。如果用 `harmony_tracks="1"` 将渠道 1 标为 `top`，自定义样式里也可定义同名样式供和声轨选择。
 
 ## For AI agents
 
@@ -59,4 +85,4 @@ review serve
 | 发布候选方案、接收截帧反馈和采用参数 | [kara-previwer](skills/kara-previwer/SKILL.md) |
 | 从打轴工程或采用快照重建整曲 | [vibekara-export](skills/vibekara-export/SKILL.md) |
 
-评审事件支持宿主推送，也可以用 `review wait` 长轮询接收。续作时先核对歌曲目录的制作记录和会话状态；导出时使用采用事件提交的实际选值。[评审事件与 CLI](kara-previwer/README.md#for-ai-agents)
+评审采用后保存可重建快照。续作时可从快照补建 Hook 或继续合成缺失的视频。[评审脚本与事件](kara-previwer/README.md#for-ai-agents)

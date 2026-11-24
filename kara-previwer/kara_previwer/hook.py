@@ -2,6 +2,7 @@
 
 import json
 import re
+import struct
 from pathlib import Path
 
 
@@ -47,6 +48,9 @@ def unpack(source: Path, directory: Path):
     shader = "\n".join(lines)
     if "vec4 hook()" not in shader or "//!" in shader:
         raise ValueError("expected a single MAIN pass")
+    if "PTS * item(0)" in shader:
+        rate, first, count = struct.unpack_from("=3f", raw)
+        sizes["clock"] = [int(rate), int(first), int(count)]
     (directory / "scene.frag").write_text(shader)
     (directory / "textures.json").write_text(json.dumps(sizes))
 

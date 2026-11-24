@@ -33,6 +33,7 @@ function App() {
   const [state, setState] = useState(null),
     [proposal, setProposal] = useState(null),
     [values, setValues] = useState({});
+  const [rangeDrafts, setRangeDrafts] = useState({});
   const [status, setStatus] = useState("正在加载"),
     [history, setHistory] = useState([]),
     [note, setNote] = useState("");
@@ -56,10 +57,28 @@ function App() {
     acceptedToken = useRef(null);
   const segments = useRef(null), resume = useRef(false), segmentHooks = useRef(new Map());
   const [ranges, setRanges] = useState([]);
-  const compileQueue = useRef(null);
+  const renderRequests = useRef({});
   const [connection, setConnection] = useState(0);
   const [direction, setDirection] = useState(0),
     [sideOpen, setSideOpen] = useState(true);
+  async function requestPreview(start, current, prefetch = false) {
+    const lane = prefetch ? "lookahead" : "current";
+    while (current()) {
+      const running = renderRequests.current[lane];
+      if (running) {
+        await running.catch(() => {});
+        continue;
+      }
+      const request = start();
+      renderRequests.current[lane] = request;
+      try {
+        return await request;
+      } finally {
+        delete renderRequests.current[lane];
+      }
+    }
+    throw new DOMException("Preview selection changed", "AbortError");
+  }
   function choose(revision, snapshot, index = 0) {
     const p = index
       ? { ...revision.directions[index - 1], version: revision.version }
@@ -67,6 +86,7 @@ function App() {
     setDirection(index);
     setProposal(p);
     setValues(snapshot ?? p.values ?? {});
+    setRangeDrafts({});
     setReady(false);
   }
   async function refresh() {
@@ -158,7 +178,7 @@ function App() {
       }
     } else {
       if (!force && frame === undefined && view.frame === i) return;
-      renderer.current.draw(c.start + i / c.fps, c.motion ? audio.current : null);
+      renderer.current.draw(c.start + i / c.fps);
     }
     view.frame = i;
     canvas.current.dataset.frame = i;
@@ -176,8 +196,12 @@ function App() {
   }, []);
   useEffect(() => {
     if (!proposal) return;
-    const seq = ++latest.current,
-      clip = proposal.clip;
+    const seq = ++latest.current;
+    const changed = Object.entries(values).some(([key, value]) =>
+      !(key in (proposal.palette || {})) && value !== proposal.values[key]);
+    const clip = changed && proposal.clip.edit_segment_frames
+      ? {...proposal.clip, segment_frames: proposal.clip.edit_segment_frames}
+      : proposal.clip;
     const unavailable = Object.entries(proposal.fonts || {}).find(
       ([field, fonts]) => !fonts.includes(values[field]),
     );
@@ -199,7 +223,7 @@ function App() {
         media.src = clip.audio;
         media.currentTime = Math.max(0, Math.min(position, clip.duration));
       }
-      const player = segmentPlayer({proposal, values, direction, media, api, resume, hookCache: segmentHooks.current,
+      const player = segmentPlayer({proposal: {...proposal, clip}, values, direction, media, api, requestPreview, resume, hookCache: segmentHooks.current,
         canvas: canvas.current, fallback: fallback.current,
         renderer: () => (renderer.current ??= createRenderer(canvas.current)),
         present: view => { presented.current = view; setReady(true); },
@@ -225,21 +249,10 @@ function App() {
           hook = proposal.hook;
         }
         if (!hook) {
-          // One geometry compile per page at a time. After it completes only the
-          // latest gesture may start the next compile.
-          if (compileQueue.current) await compileQueue.current.catch(() => {});
-          if (seq !== latest.current) return;
-          const request = api("render", {
-            version: proposal.version,
-            direction,
-            values,
-          });
-          compileQueue.current = request;
-          try {
-            hook = (await request).hook;
-          } finally {
-            if (compileQueue.current === request) compileQueue.current = null;
-          }
+          ({ hook } = await requestPreview(
+            () => api("render", {version: proposal.version, direction, values}),
+            () => seq === latest.current,
+          ));
         }
         cached.current.set(key, hook);
         if (seq !== latest.current) return;
@@ -303,6 +316,10 @@ function App() {
         setStatus(native ? "原生预渲染片段" : "实时预览");
         canvas.current.dataset.hook = hook;
         canvas.current.dataset.values = JSON.stringify(values);
+        if (resume.current) {
+          resume.current = false;
+          audio.current.play().catch(() => {});
+        }
       } catch (e) {
         if (seq === latest.current) setStatus(e.message);
       }
@@ -349,13 +366,14 @@ function App() {
       );
     }
     let pixels = canvas.current;
-    if (v.fallback) {
+    if (v.fallback || v.clip.motion) {
       pixels = document.createElement("canvas");
       pixels.width = canvas.current.width;
       pixels.height = canvas.current.height;
-      pixels
-        .getContext("2d")
-        .drawImage(fallback.current, 0, 0, pixels.width, pixels.height);
+      const capture = pixels.getContext("2d");
+      capture.drawImage(v.fallback ? fallback.current : media, 0, 0, pixels.width, pixels.height);
+      if (!v.fallback)
+        capture.drawImage(canvas.current, 0, 0, pixels.width, pixels.height);
     }
     setCompare(null);
     setCapture({
@@ -456,7 +474,10 @@ function App() {
   const clip = proposal?.clip;
   const Media = clip?.motion ? "video" : "audio";
   const revision = state?.revisions[proposal?.version - 1];
+  const percentOf = proposal?.percent_of ?? {};
+  const sizeFields = new Set(Object.values(percentOf));
   function field(f) {
+    const reference = percentOf[f.name];
     return (
       <Field
         key={f.name}
@@ -464,6 +485,10 @@ function App() {
         fonts={proposal.fonts?.[f.name]}
         sample={proposal.sample}
         value={values[f.name]}
+        referenceSize={rangeDrafts[reference] ?? values[reference]}
+        onDraft={sizeFields.has(f.name) ? (draft) => {
+          setRangeDrafts((current) => ({ ...current, [f.name]: draft }));
+        } : undefined}
         change={(value) =>
           setValues((current) => ({ ...current, [f.name]: value }))
         }
@@ -514,6 +539,18 @@ function App() {
                 step(Math.sign(e.deltaY));
             }}
           >
+            <media-controller id="clock-controller" audio="" nohotkeys="">
+              <Media
+                playsInline
+                ref={audio}
+                slot="media"
+                loop
+                onPause={() => { fallback.current?.pause(); draw(); }}
+                onSeeking={() => draw()}
+                onLoadedData={() => draw(undefined, true)}
+                onSeeked={() => draw(undefined, true)}
+              />
+            </media-controller>
             <canvas
               ref={canvas}
               width={clip?.width || 1280}
@@ -535,18 +572,6 @@ function App() {
             />
           )}
           <div className="transport">
-            <media-controller id="clock-controller" audio="" nohotkeys="">
-              <Media
-                playsInline
-                ref={audio}
-                slot="media"
-                loop
-                onPause={() => { fallback.current?.pause(); draw(); }}
-                onSeeking={() => draw()}
-                onLoadedData={() => draw(undefined, true)}
-                onSeeked={() => draw(undefined, true)}
-              />
-            </media-controller>
             <media-control-bar mediacontroller="clock-controller">
               <media-play-button />
               <button type="button" aria-label="上一帧" title="上一帧（←）" disabled={!ready}
@@ -635,9 +660,10 @@ function App() {
                   {proposal.presets.map((p) => (
                     <button
                       key={p.title}
-                      onClick={() =>
-                        setValues({ ...proposal.values, ...p.values })
-                      }
+                      onClick={() => {
+                        setRangeDrafts({});
+                        setValues({ ...proposal.values, ...p.values });
+                      }}
                     >
                       {p.title}
                     </button>
