@@ -63,7 +63,7 @@ python kara-previwer/scripts/rebuild_hook.py song/approved lyrics.hook
 }
 ```
 
-模板可将只负责绘制且独占一个 RGB 默认色的字段列入 `palette_parameters`。浏览器预览直接更新该颜色，正式 Hook 在编译时使用完整选值。颜色由其他效果共享或参与派生时，使用普通 color 字段。几何和时间变更按预览范围重新编译。
+模板可以用 kara-templater 的 `PaintInput` 将材质专用的颜色或数值绑定到同名字段。浏览器直接更新该参数，正式 Hook 在编译时使用完整选值。参与布局、覆盖、时序或跨字段校验的参数按预览范围重新编译。
 
 桌面预览支持 WebGL 2。无法使用它时，服务调用含 Vulkan/libplacebo 和 libvpx-vp9 的 FFmpeg 渲染所选片段，或使用 clip.fallback 中已提供的原生短片。画面右侧可调设计、填写自由意见，暂停后可逐帧、点选或圈出问题。历史意见提供原帧和新版同一时刻的对照。
 

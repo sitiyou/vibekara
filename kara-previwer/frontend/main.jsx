@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Camera, Layers, Maximize, Minimize, StepBack, StepForward } from "lucide-react";
 import { createRoot } from "react-dom/client";
 import { segmentPlayer } from "./segments";
-import { createRenderer } from "./renderer";
+import { createRenderer, materialValues, nativeFrame, sameValues } from "./renderer";
 import { Field } from "./fields";
 import { Annotation } from "./annotations";
 import "media-chrome/media-controller";
@@ -61,6 +61,12 @@ function App() {
   const [connection, setConnection] = useState(0);
   const [direction, setDirection] = useState(0),
     [sideOpen, setSideOpen] = useState(true);
+  const liveValues = useRef(values);
+  liveValues.current = values;
+  const [nativeActive, setNativeActive] = useState(false);
+  const materialDefaults = proposal ? materialValues(proposal, proposal.values) : {};
+  const renderKey = JSON.stringify(nativeActive
+    ? values : {...values, ...materialDefaults});
   async function requestPreview(start, current, prefetch = false) {
     const lane = prefetch ? "lookahead" : "current";
     while (current()) {
@@ -196,9 +202,10 @@ function App() {
   }, []);
   useEffect(() => {
     if (!proposal) return;
+    const values = liveValues.current;
     const seq = ++latest.current;
     const changed = Object.entries(values).some(([key, value]) =>
-      !(key in (proposal.palette || {})) && value !== proposal.values[key]);
+      !(key in materialDefaults) && value !== proposal.values[key]);
     const clip = changed && proposal.clip.edit_segment_frames
       ? {...proposal.clip, segment_frames: proposal.clip.edit_segment_frames}
       : proposal.clip;
@@ -223,10 +230,15 @@ function App() {
         media.src = clip.audio;
         media.currentTime = Math.max(0, Math.min(position, clip.duration));
       }
-      const player = segmentPlayer({proposal: {...proposal, clip}, values, direction, media, api, requestPreview, resume, hookCache: segmentHooks.current,
+      const player = segmentPlayer({proposal: {...proposal, clip}, values, currentValues: () => liveValues.current,
+        direction, media, api, requestPreview, resume, hookCache: segmentHooks.current,
         canvas: canvas.current, fallback: fallback.current,
         renderer: () => (renderer.current ??= createRenderer(canvas.current)),
-        present: view => { presented.current = view; setReady(true); },
+        present: view => {
+          presented.current = view;
+          setNativeActive(!!view.fallback);
+          setReady(true);
+        },
         redraw: () => draw(undefined, true), status: setStatus,
         buffered: (a,b) => setRanges(old => [...old.filter(r => r[0] !== a), [a,b]]),
         active: () => latest.current === seq});
@@ -234,7 +246,7 @@ function App() {
       draw();
       return () => { player.stop(); segments.current = null; ++latest.current; };
     }
-    const geometry = { ...values, ...proposal.palette };
+    const geometry = { ...values, ...materialDefaults };
     const key = JSON.stringify([proposal.version, direction, geometry]);
     setReady(false);
     const hit = cached.current.get(key);
@@ -244,7 +256,7 @@ function App() {
         if (
           !hook &&
           JSON.stringify(geometry) ===
-            JSON.stringify({ ...proposal.values, ...proposal.palette })
+            JSON.stringify({ ...proposal.values, ...materialDefaults })
         ) {
           hook = proposal.hook;
         }
@@ -256,28 +268,23 @@ function App() {
         }
         cached.current.set(key, hook);
         if (seq !== latest.current) return;
-        let native = false;
+        let native;
         try {
           renderer.current ??= createRenderer(canvas.current);
           const activate = await renderer.current.prepare(
             hook,
             clip.background,
-            proposal.palette,
-            values,
             clip.motion,
           );
           if (seq !== latest.current) return;
           activate();
+          renderer.current.setParameters(materialValues(proposal, liveValues.current));
         } catch (e) {
           setStatus("正在生成原生预渲染片段");
-          native = (
-            await api("native", {
-              version: proposal.version,
-              direction,
-              values,
-            })
-          ).video;
-          if (seq !== latest.current) return;
+          native = await nativeFrame(fallback.current,
+            values => api("native", {version: proposal.version, direction, values}),
+            () => liveValues.current, () => seq === latest.current);
+          if (!native) return;
         }
         const previous = presented.current;
         if (audio.current.getAttribute("src") !== clip.audio) {
@@ -292,30 +299,24 @@ function App() {
           );
           if (playing) audio.current.play().catch(() => {});
         }
-        canvas.current.hidden = native;
+        canvas.current.hidden = !!native;
         fallback.current.hidden = !native;
-        if (native) {
-          fallback.current.src = native;
-          await new Promise((ok, fail) => {
-            fallback.current.onloadeddata = ok;
-            fallback.current.onerror = fail;
-          });
-          if (seq !== latest.current) return;
-        }
+        const displayed = native?.values ?? liveValues.current;
         presented.current = {
           clip,
           hook,
           version: proposal.version,
           direction,
-          values,
+          values: displayed,
           frame: -1,
-          fallback: native,
+          fallback: native?.video,
         };
+        setNativeActive(!!native);
         setReady(true);
         draw(undefined, true);
         setStatus(native ? "原生预渲染片段" : "实时预览");
         canvas.current.dataset.hook = hook;
-        canvas.current.dataset.values = JSON.stringify(values);
+        canvas.current.dataset.values = JSON.stringify(displayed);
         if (resume.current) {
           resume.current = false;
           audio.current.play().catch(() => {});
@@ -335,7 +336,17 @@ function App() {
       clearTimeout(timer);
       latest.current++;
     };
-  }, [proposal, values, connection]);
+  }, [proposal, renderKey, connection, direction]);
+  useEffect(() => {
+    const view = presented.current;
+    if (!view || view.fallback || view.version !== proposal?.version || view.direction !== direction) return;
+    const changed = Object.keys(values).filter(name => values[name] !== view.values[name]);
+    if (!changed.length || changed.some(name => !(name in materialDefaults))) return;
+    renderer.current?.setParameters(materialValues(proposal, values));
+    view.values = values;
+    canvas.current.dataset.values = JSON.stringify(values);
+    draw(undefined, true);
+  }, [proposal, values, direction]);
   function step(n) {
     const v = presented.current;
     if (!v) return;
@@ -393,13 +404,13 @@ function App() {
   }
   async function submit(action) {
     const v = presented.current;
-    if (!ready || busy) return;
+    if (!ready || busy || !v || !sameValues(v.values, values)) return;
     const data = {
       action,
       base: state.version,
       version: v.version,
       direction: v.direction,
-      values,
+      values: v.values,
       hook: v.hook,
       clip: v.clip.id,
       frame: v.frame,

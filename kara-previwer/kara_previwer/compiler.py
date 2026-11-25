@@ -81,6 +81,21 @@ def shared_scene(job, recipe, song, values, timing):
     return _scene
 
 
+def material_fields(scene, fields, values):
+    from kara_templater import Color
+
+    inputs = scene.material_inputs()
+    names = []
+    for field in fields:
+        default = inputs.get(field.name)
+        value = values[field.name]
+        color = field.kind == "color" and isinstance(default, Color) and default == Color.hex("#" + value)
+        scalar = field.kind in ("int", "float") and type(default) in (int, float) and default == value
+        if color or scalar:
+            names.append(field.name)
+    return sorted(names)
+
+
 def run(job):
     recipe = load_recipe(job["script"], job["template"])
     if recipe.id == "default" or not recipe.semantic:
@@ -92,11 +107,9 @@ def run(job):
         return {
             "parameters": [asdict(field) for field in recipe.parameters],
             "values": values,
-            "palette": {
-                f.name: str(f.default).lstrip("#")
-                for f in recipe.parameters
-                if f.name in recipe.palette_parameters
-            },
+            "material_fields_allowed": recipe.validate is None and any(
+                field.kind in ("color", "int", "float") for field in recipe.parameters
+            ),
         }
     timing = timing_key(job)
     if "project" in job:
@@ -113,6 +126,8 @@ def run(job):
             return {"miss": True}
         if job.get("prepare_scene"):
             return {}
+        if job.get("material_fields"):
+            return {"material_fields": material_fields(scene, recipe.parameters, values)}
     else:
         if "duration" in job:
             song = replace(

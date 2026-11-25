@@ -17,7 +17,7 @@ from .hook import unpack
 SONG_INPUT_FILES = ("lyrics.krc", "vocal.mid", "song.json")
 LEGACY_SONG_FIELDS = ("krc", "midi", "wavetone", "offset_ms", "track_style", "colors")
 # Editable windows are regenerated when the Hook exporter changes its packing.
-_HOOK_CACHE_VERSION = 3
+_HOOK_CACHE_VERSION = 6
 
 
 def digest(path):
@@ -94,10 +94,7 @@ def editing_clip(proposal, values):
     """Keep the published whole-song hook seekable and compile edits near the playhead."""
     clip = proposal["clip"]
     width = clip.get("edit_segment_frames")
-    if width and any(
-        value != proposal["values"].get(key)
-        for key, value in values.items() if key not in proposal.get("palette", {})
-    ):
+    if width and cache_values(proposal, values) != cache_values(proposal, proposal["values"]):
         return {**clip, "segment_frames": width}
     return clip
 
@@ -143,8 +140,8 @@ def prepare(session, manifest, inherited=None):
         )
     if not proposal.get("template") or proposal["template"] == "default":
         raise ValueError("review requires an external template")
-    if "config" in proposal or "palette" in proposal:
-        raise ValueError("config and palette are generated from the selected template")
+    if {"config", "material_fields", "material_fields_allowed"} & proposal.keys():
+        raise ValueError("preview bindings and config are generated from the selected template")
     if "compiler" not in proposal and proposal.get("parameters"):
         raise ValueError("editable parameters require a compiler")
     fields = proposal.setdefault("parameters", [])
@@ -268,6 +265,10 @@ def prepare(session, manifest, inherited=None):
         proposal.update(
             compile_job(local, describe=True, values=choices) if choices else schema
         )
+        if proposal.pop("material_fields_allowed", False):
+            proposal.update(compile_job(
+                local, material_fields=True, values=proposal["values"], shared_scene="preview",
+            ))
         proposal["hook"] = compiled(
             session, {**proposal, "clip": window}, proposal["values"]
         )
@@ -277,14 +278,7 @@ def prepare(session, manifest, inherited=None):
         validate_values(proposal, {**proposal.get("values", {}), **preset["values"]})
     directory = session.root / proposal["hook"]
     metadata = json.loads((directory / "textures.json").read_text())
-    if "clock" in metadata:
-        rate, first, count = metadata["clock"]
-    else:
-        shader = (directory / "scene.frag").read_text()
-        clock = re.search(r"PTS \* float\((\d+)\).*?\) - (\d+)", shader)
-        length = re.search(r"index>=(\d+)", shader)
-        rate, first = (int(clock[1]), int(clock[2])) if clock else (0, 0)
-        count = int(length[1]) if length else 0
+    rate, first, count = metadata["clock"]
     if (rate, first) != (fps, round(window["start"] * fps)):
         raise ValueError("hook clock differs from the clip start or frame rate")
     if count < math.ceil(window["duration"] * fps - 1e-8):
@@ -407,32 +401,34 @@ def _prepare_preview_scene(config, values):
         pass
 
 
-def _export_window(config, clip, values, output, *, prefetch, lane, resources=False):
+def _export_window(config, clip, values, output, *, prefetch):
     job = {
         "values": values,
         "fps": clip["fps"],
         "start": clip["start"],
         "duration": clip["duration"],
         "output": str(output),
-        "resources_output": resources,
+        "resources_output": True,
     }
-    if "segment_frames" in clip and lane == "preview":
-        result = compile_job(config, **job, shared_scene=lane, cached_only=True)
+    if "segment_frames" in clip:
+        result = compile_job(config, **job, shared_scene="preview", cached_only=True)
         if result.get("miss"):
             if prefetch:
                 Thread(target=_prepare_preview_scene, args=(config, values), daemon=True).start()
             compile_job(config, **job, worker="lookahead" if prefetch else None)
-    elif "segment_frames" in clip:
-        result = compile_job(config, **job, shared_scene=lane, cached_only=not prefetch)
-        if result.get("miss"):
-            compile_job(config, **job)
     else:
         compile_job(config, **job)
 
 
+def cache_values(proposal, values):
+    return {**values, **{
+        name: proposal["values"][name] for name in proposal.get("material_fields", ())
+    }}
+
+
 def resource_path(proposal, values):
     clip = proposal["clip"]
-    options = {"values": {**values, **proposal.get("palette", {})}, "fps": clip["fps"]}
+    options = {"values": cache_values(proposal, values), "fps": clip["fps"]}
     digest = hashlib.sha256(json.dumps(
         [_HOOK_CACHE_VERSION, proposal["config"], options, clip["start"], clip["duration"]],
         sort_keys=True,
@@ -449,8 +445,8 @@ def compiled(session, proposal, values, *, prefetch=False):
         with tempfile.TemporaryDirectory(dir=target.parent) as tmp:
             staging = Path(tmp) / "parts"
             _export_window(
-                config, clip, {**values, **proposal.get("palette", {})}, staging,
-                prefetch=prefetch, lane="preview", resources=True
+                config, clip, cache_values(proposal, values), staging,
+                prefetch=prefetch,
             )
             try:
                 os.rename(staging, target)
@@ -460,7 +456,7 @@ def compiled(session, proposal, values, *, prefetch=False):
     return "assets/" + target.name
 
 
-def native_preview(session, proposal, hook, values, *, prefetch=False):
+def native_preview(session, proposal, hook, values):
     import subprocess
 
     from .hook import repack
@@ -476,20 +472,9 @@ def native_preview(session, proposal, hook, values, *, prefetch=False):
         with tempfile.TemporaryDirectory(dir=target.parent) as tmp:
             directory = Path(tmp)
             source = directory / "scene.hook"
-            if any(
-                values[name] != default
-                for name, default in proposal.get("palette", {}).items()
-            ):
-                _export_window(
-                    local_config(session, proposal),
-                    clip,
-                    values,
-                    source,
-                    prefetch=prefetch,
-                    lane="native",
-                )
-            else:
-                repack(session.root / hook, source)
+            repack(session.root / hook, source, {
+                name: values[name] for name in proposal.get("material_fields", ())
+            })
             fps = clip["fps"]
             if clip.get("motion"):
                 inputs = [

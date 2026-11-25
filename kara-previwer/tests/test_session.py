@@ -6,6 +6,7 @@ import tempfile
 import unittest
 import uuid
 import wave
+from array import array
 from pathlib import Path
 
 from kara_previwer.bundle import prepare
@@ -54,13 +55,13 @@ class ReviewTest(unittest.TestCase):
         parts = self.root / "scene"
         parts.mkdir()
         (parts / "KARAMASK.bin").write_bytes(bytes([255]))
-        (parts / "KARADATA.bin").write_bytes(bytes(16))
+        (parts / "KARADATA.bin").write_bytes(array("f", (30, 900, 270, 1)).tobytes())
         (parts / "textures.json").write_text(
-            json.dumps({"KARAMASK": [1, 1], "KARADATA": [1, 1]})
+            json.dumps({"KARAMASK": [1, 1], "KARADATA": [1, 1], "clock": [30, 900, 270]})
         )
         (parts / "scene.frag").write_text(
-            "vec4 hook(){int index=int(floor(PTS * float(30) + 0.001)) - 900;"
-            "if(index>=270)return vec4(0);return HOOKED_tex(HOOKED_pos);}"
+            "vec4 hook(){int index=int(floor(PTS * item(0) + 0.001)) - refAt(1);"
+            "if(index>=refAt(2))return vec4(0);return HOOKED_tex(HOOKED_pos);}"
         )
         repack(parts, self.root / "scene.hook")
         clip = {

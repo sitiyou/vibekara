@@ -1,6 +1,6 @@
 import unittest
 
-from kara_previwer.bundle import segment_clip
+from kara_previwer.bundle import editing_clip, resource_path, segment_clip
 
 
 class SegmentTest(unittest.TestCase):
@@ -25,7 +25,6 @@ class SegmentTest(unittest.TestCase):
         from pathlib import Path
         from types import SimpleNamespace
 
-        from kara_previwer.bundle import resource_path
         from kara_previwer.server import preview_window
 
         proposal = {"clip": {"start": 14, "duration": 17.21, "fps": 30, "edit_segment_frames": 60},
@@ -40,3 +39,14 @@ class SegmentTest(unittest.TestCase):
                 result = preview_window(session, proposal, values, 90, **options)
                 self.assertEqual((result["start"], result["duration"]), (14, 17.21))
             self.assertEqual(preview_window(session, proposal, {"size": 56}, 90, presented=key)["start"], 16)
+
+    def test_live_shader_inputs_share_the_asset_and_keep_whole_song_seekable(self):
+        clip = {"start": 14, "duration": 17.21, "fps": 30, "edit_segment_frames": 60}
+        start = {"tint": "FF0000", "size": 50}
+        proposal = {"clip": clip, "values": start, "config": "recipe", "material_fields": ["tint"]}
+        appearance = {**start, "tint": "00FF00"}
+        geometry = {**appearance, "size": 55}
+        self.assertEqual(resource_path(proposal, appearance), resource_path(proposal, start))
+        self.assertNotEqual(resource_path(proposal, geometry), resource_path(proposal, start))
+        self.assertEqual(editing_clip(proposal, appearance), clip)
+        self.assertEqual(editing_clip(proposal, geometry)["segment_frames"], 60)

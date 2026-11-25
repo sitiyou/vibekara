@@ -1,12 +1,15 @@
-// A scheduler is scoped to one revision and one set of selected values.
-export function segmentPlayer({ proposal, values, direction, api, requestPreview, renderer, media,
+import { materialValues, nativeFrame } from "./renderer";
+
+// A scheduler is scoped to one revision and one set of structural values.
+export function segmentPlayer({ proposal, values, currentValues, direction, api, requestPreview, renderer, media,
   canvas, fallback, present, redraw, status, buffered, active, resume, hookCache }) {
   const clip = proposal.clip, fps = clip.fps, width = clip.segment_frames;
   const count = Math.ceil(clip.duration * fps);
   const entries = new Map();
   let wanted = -1, showing = -1, lookahead = -1, serial = 0, stopped = false;
   const valid = () => !stopped && active();
-  const geometry = JSON.stringify([proposal.version, direction, {...values, ...proposal.palette}]);
+  const material = materialValues(proposal, proposal.values);
+  const geometry = JSON.stringify([proposal.version, direction, {...values, ...material}]);
   function requestHook(first, prefetch) {
     const key = geometry + ":" + first;
     const hit = hookCache.get(key);
@@ -23,21 +26,18 @@ export function segmentPlayer({ proposal, values, direction, api, requestPreview
   }
   function load(first, prefetch = false) {
     if (entries.has(first)) return entries.get(first);
-    const payload = {version: proposal.version, direction, values, frame: first, prefetch};
     const promise = (async () => {
       const {hook} = await requestHook(first, prefetch);
       if (!valid()) return;
       if (!prefetch && first === wanted) prefetchNext(first);
-      let activate, video;
+      let activate;
       try {
         const r = renderer();
-        activate = await r.prepare(hook, clip.background, proposal.palette, values, clip.motion);
-      } catch {
-        video = (await api("native", payload)).video;
-      }
+        activate = await r.prepare(hook, clip.background, clip.motion);
+      } catch {}
       if (!valid()) return;
       buffered(first, Math.min(first + width, count));
-      return {activate, video, hook};
+      return {activate, hook};
     })();
     entries.set(first, promise);
     promise.catch(() => entries.delete(first));
@@ -63,24 +63,26 @@ export function segmentPlayer({ proposal, values, direction, api, requestPreview
       if (!valid() || token !== serial) return;
       const entry = await load(first);
       if (!valid() || token !== serial) return;
-      if (entry.video) {
+      let native;
+      if (!entry.activate) {
         if (!media.paused) { resume.current = true; media.pause(); }
-        await new Promise((resolve, reject) => {
-          fallback.onloadeddata = resolve;
-          fallback.onerror = () => reject(Error("视频缓冲失败"));
-          fallback.src = entry.video;
-        });
+        native = await nativeFrame(fallback,
+          values => api("native", {version: proposal.version, direction, values, frame: first}),
+          currentValues, () => valid() && token === serial);
+        if (!native) return;
       }
       if (!valid() || token !== serial) return;
       entry.activate?.();
-      canvas.hidden = !!entry.video;
-      fallback.hidden = !entry.video;
+      const displayed = native?.values ?? currentValues();
+      if (entry.activate) renderer().setParameters(materialValues(proposal, displayed));
+      canvas.hidden = !!native;
+      fallback.hidden = !native;
       showing = first;
-      present({clip, hook: entry.hook, version: proposal.version, direction, values,
-        fallback: entry.video, mediaOffset: first / fps, frame: -1});
+      present({clip, hook: entry.hook, version: proposal.version, direction, values: displayed,
+        fallback: native?.video, mediaOffset: first / fps, frame: -1});
       canvas.dataset.hook = entry.hook;
-      canvas.dataset.values = JSON.stringify(values);
-      status(entry.video ? "原生分段预览" : "实时预览");
+      canvas.dataset.values = JSON.stringify(displayed);
+      status(native ? "原生分段预览" : "实时预览");
       redraw();
       if (resume.current) { resume.current = false; media.play().catch(() => {}); }
       for (const key of entries.keys()) if (Math.abs(key - first) > width) entries.delete(key);

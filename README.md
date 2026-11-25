@@ -43,7 +43,7 @@ done
 先查找本机已有工具和项目环境，再安装当前阶段缺少的工具。[工具复用](docs/preferences.md#查找本机工具)
 
 - **打轴**需要 Namioto 编辑器和 CLI，并将上游的 `skills/namioto-nicokara` 链接到同一 skills 目录。[Namioto 安装说明](https://github.com/sitiyou/namioto)
-- **字幕渲染**需要包含工程读取器的 Namioto、kara-templater 1.1.1 和目标字体。编写或调整模板时，将上游的 `skills/kara-templater` 链接到同一目录。浏览器评审服务直接从源码运行，需要 Python 3.11+、ffprobe 和 Fontconfig。[kara-templater](https://github.com/sitiyou/python-kara-templater) · [启动评审服务](kara-previwer/README.md#启动)
+- **字幕渲染**需要包含工程读取器的 Namioto、支持 `PreparedHook.material_inputs()` 的 kara-templater 和目标字体。使用开发版时，在渲染环境运行 `python -m pip install /path/to/kara-templater`。编写或调整模板时，将上游的 `skills/kara-templater` 链接到同一目录。浏览器评审服务直接从源码运行，需要 Python 3.11+、ffprobe 和 Fontconfig。[kara-templater](https://github.com/sitiyou/python-kara-templater) · [启动评审服务](kara-previwer/README.md#启动)
 - **导出视频**需要 FFmpeg、ffprobe，以及可用的 Vulkan 设备和 FFmpeg 的 `libplacebo` 滤镜。
 
 ## 从 Python 导入 Namioto 工程

@@ -1,3 +1,39 @@
+export function materialValues(proposal, values) {
+  return Object.fromEntries((proposal.material_fields ?? []).map(name => [name, values[name]]));
+}
+
+export function sameValues(left, right) {
+  return Object.keys(left).length === Object.keys(right).length
+    && Object.keys(left).every(name => left[name] === right[name]);
+}
+
+export async function nativeFrame(media, request, currentValues, valid) {
+  while (valid()) {
+    const values = currentValues();
+    const {video} = await request(values);
+    if (!valid()) break;
+    if (!sameValues(values, currentValues())) continue;
+    if (media.getAttribute("src") !== video || media.readyState < 2) {
+      await new Promise((resolve, reject) => {
+        const events = new AbortController();
+        media.addEventListener("loadeddata", () => {
+          events.abort();
+          resolve();
+        }, {signal: events.signal});
+        media.addEventListener("error", () => {
+          events.abort();
+          reject(Error("视频缓冲失败"));
+        }, {signal: events.signal});
+        media.src = video;
+      }).catch(error => {
+        if (valid()) throw error;
+      });
+    }
+    if (valid() && sameValues(values, currentValues())) return {video, values};
+  }
+  return null;
+}
+
 export function createRenderer(canvas) {
   const gl = canvas.getContext("webgl2", { alpha: true, premultipliedAlpha: true, antialias: false });
   if (!gl) throw Error("此浏览器无法使用 WebGL 2");
@@ -54,7 +90,7 @@ uniform sampler2D bgTex,KARAMASK,KARADATA; uniform float PTS; uniform bool overl
   }
   const background = texture(0, gl.LINEAR);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-  async function load(key, palette) {
+  async function load(key) {
     const base = key + "/";
     async function resource(name) {
       const response = await fetch(base + name);
@@ -68,42 +104,14 @@ uniform sampler2D bgTex,KARAMASK,KARADATA; uniform float PTS; uniform bool overl
     const limit = gl.getParameter(gl.MAX_TEXTURE_SIZE);
     if ([...sizes.KARAMASK, ...sizes.KARADATA].some(size => size > limit))
       throw Error("字幕纹理超过设备上限");
-    const names = Object.keys(palette);
-    const uniforms = names
-      .map((_, i) => "uniform vec3 reviewColor" + i + ";")
-      .join("\n");
-    const cases = names
-      .map((name, i) => {
-        if (!/^[0-9A-Fa-f]{6}$/.test(palette[name]))
-          throw Error("无效的模板色值");
-        const parts = palette[name]
-          .match(/../g)
-          .map((v) => parseInt(v, 16) + ".0")
-          .join(",");
-        return (
-          "if(all(lessThan(abs(c-vec3(" +
-          parts +
-          ")/255.0),vec3(0.00001))))return reviewColor" +
-          i +
-          ";"
-        );
-      })
-      .join("\n");
-    const body = names.length
-      ? frag
-          .replace("vec3 rgbAt(int i)", "vec3 originalRGB(int i)")
-          .replace(
-            "int preceding(",
-            uniforms +
-              "\nvec3 rgbAt(int i){vec3 c=originalRGB(i);" +
-              cases +
-              "return c;}\nint preceding(",
-          )
-      : frag;
-    const program = acquire(programs, body, async () => {
+    const parameters = Object.entries(sizes.parameters ?? {});
+    const materialUniforms = parameters.flatMap(([, slot]) => slot.uniforms)
+      .map(name => `uniform float ${name};`).join("\n");
+    const source = materialUniforms + "\n" + frag;
+    const program = acquire(programs, source, async () => {
       const p = gl.createProgram();
       const vs = shader(gl.VERTEX_SHADER, vertex);
-      const fs = shader(gl.FRAGMENT_SHADER, prefix + body + "\nvoid main(){pixel=hook();}");
+      const fs = shader(gl.FRAGMENT_SHADER, prefix + source + "\nvoid main(){pixel=hook();}");
       gl.attachShader(p, vs);
       gl.attachShader(p, fs);
       gl.linkProgram(p);
@@ -147,10 +155,10 @@ uniform sampler2D bgTex,KARAMASK,KARADATA; uniform float PTS; uniform bool overl
         p,
         textures,
         release: () => leases.forEach(lease => lease.release()),
-        colors: names.map((name, i) => [
-          name,
-          gl.getUniformLocation(p, "reviewColor" + i),
-        ]),
+        parameters: parameters.map(([name, slot]) => ({
+          name, kind: slot.kind, defaults: slot.default,
+          locations: slot.uniforms.map(symbol => gl.getUniformLocation(p, symbol)),
+        })),
         time: gl.getUniformLocation(p, "PTS"),
         overlay: gl.getUniformLocation(p, "overlay"),
       };
@@ -171,14 +179,28 @@ uniform sampler2D bgTex,KARAMASK,KARADATA; uniform float PTS; uniform bool overl
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 
+  function setParameters(values) {
+    if (!current) return;
+    gl.useProgram(current.p);
+    for (const { name, kind, defaults, locations } of current.parameters) {
+      const value = values[name];
+      let parts = defaults;
+      if (kind === "float" && Number.isFinite(value)) parts = [value];
+      if (kind === "color" && /^[0-9A-Fa-f]{6}$/.test(value)) {
+        parts = value.match(/../g).map(channel => parseInt(channel, 16) / 255);
+      }
+      parts.forEach((part, index) => gl.uniform1f(locations[index], part));
+    }
+  }
+
   return {
     draw,
-    async prepare(path, url, palette = {}, values = {}, motion = false) {
-      const key = path + JSON.stringify(palette);
+    setParameters,
+    async prepare(key, url, motion = false) {
       if (!cache.has(key))
         cache.set(
           key,
-          load(path, palette).catch((error) => {
+          load(key).catch((error) => {
             cache.delete(key);
             throw error;
           }),
@@ -207,12 +229,7 @@ uniform sampler2D bgTex,KARAMASK,KARADATA; uniform float PTS; uniform bool overl
         current = scene;
         gl.useProgram(scene.p);
         gl.uniform1i(scene.overlay, Number(motion));
-        for (const [name, loc] of scene.colors) {
-          const parts = values[name]
-            .match(/../g)
-            .map((v) => parseInt(v, 16) / 255);
-          gl.uniform3fv(loc, parts);
-        }
+        setParameters({});
         if (cache.size > 8) {
           const oldest = cache.keys().next().value;
           if (oldest !== key) {

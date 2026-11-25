@@ -169,17 +169,7 @@ class Handler(BaseHTTPRequestHandler):
                     )
                 )
             if route == "native":
-                return self.respond(
-                    {
-                        "video": native_preview(
-                            session,
-                            segment,
-                            hook,
-                            values,
-                            prefetch=data.get("prefetch") is True,
-                        )
-                    }
-                )
+                return self.respond({"video": native_preview(session, segment, hook, values)})
             if route == "render":
                 return self.respond({"hook": hook})
             if route == "submit":
