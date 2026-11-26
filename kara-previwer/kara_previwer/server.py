@@ -343,8 +343,11 @@ class Handler(BaseHTTPRequestHandler):
             for revision in state["revisions"]:
                 for option in [revision, *revision.get("directions", [])]:
                     decorate(option, require_selected=False)
-                    if "component_schema" in option and "component_previews" not in option:
-                        option["component_previews"] = legacy_effect_previews()
+                    if "component_schema" in option and not option.get("component_previews"):
+                        option["component_previews"] = {
+                            name: media for name, media in legacy_effect_previews().items()
+                            if name in option["component_schema"]
+                        }
             return self.respond(state)
         if route == "preferences":
             return self.respond(Preferences().read())

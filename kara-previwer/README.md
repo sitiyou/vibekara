@@ -10,7 +10,7 @@
 python kara-previwer/scripts/serve.py
 ```
 
-以上路径相对于 vibekara 仓库根目录。默认端口 18673，状态保存在 `~/.local/state/kara-previwer`。启动脚本接受 `--root` 和 `--port`。Ctrl+C 停止服务后可于同一端口恢复。修改前端时，在 `kara-previwer/` 运行 `npm ci` 和 `npm run build` 重新生成网页。
+以上路径相对于 vibekara 仓库根目录。默认端口 18673，状态保存在 `~/.vibekara/review/`。设置 `VIBEKARA_HOME` 时用其 `review/` 子目录。也可以设置 `KARA_REVIEW_ROOT`，或使用 `--root` 和 `--port` 指定会话位置。Ctrl+C 停止服务后可于同一端口恢复。修改前端时，在 `kara-previwer/` 运行 `npm ci` 和 `npm run build` 重新生成网页。
 
 ## For AI agents
 
@@ -51,7 +51,7 @@ python kara-previwer/scripts/rebuild_hook.py song/approved lyrics.hook
 }
 ```
 
-整曲交付需要可编译方案。`compiler.project` 指向保存好的 `.nto`，`compiler.python` 指向符合[字幕渲染依赖](../README.md#安装)的 Python 3.14 环境。可选 `offset_ms` 设置交付偏移，默认 0。`harmony_tracks` 可列出逗号分隔的和声 MIDI 渠道。服务在发布时复制可信模板、资源和工程。采用快照保留这些输入和构建规格。模板注册范例见[基础模板](../skills/vibekara-export/assets/template.py)。
+整曲交付需要可编译方案。`compiler.project` 指向保存好的 `.nto`，`compiler.python` 填写[安装脚本](../INSTALL.md)返回的解释器路径，或复用已验证的编译环境。可选 `offset_ms` 设置交付偏移，默认 0。`harmony_tracks` 可列出逗号分隔的和声 MIDI 渠道。服务在发布时复制可信模板、资源和工程。采用快照保留这些输入和构建规格。模板注册范例见[基础模板](../skills/vibekara-export/assets/template.py)。
 
 ```json
 {
@@ -153,6 +153,6 @@ python kara-previwer/scripts/rebuild_hook.py song/approved lyrics.hook
 
 ## 读取内置特效卡片
 
-发布可编辑方案时，评审器从 `compiler.python` 对应的 kara-templater 读取组件目录和已生成的卡片，将封面和短片保存到会话。各版本的卡片可在离线状态下回看。
+发布可编辑方案时，评审器从 `compiler.python` 对应的 kara-templater 读取组件目录和已生成的卡片，将封面和短片保存到会话。源码安装尚无生成的卡片时，评审器使用本仓库随附的预览。各版本的卡片可在离线状态下回看。
 
 开发时，在 kara-templater 仓库运行 `uv run --no-sync python -m tools.build_component_library`。可传 `--card CARD_ID` 只生成指定卡片。发布新方案时，将环境变量 `KARA_TEMPLATER_COMPONENT_PREVIEWS` 指向上游的 `build/component-catalog/previews/`。已有会话保留各版发布时的卡片。

@@ -9,7 +9,7 @@ description: 从 Namioto 工程和模板或评审采用快照构建整曲 Hook�
 
 样式评审采用后，从快照重建整曲 Hook。快照保留模板、打轴输入、选值，以及可编辑方案采用时的完整组合。预览与交付可以按各自的帧率编译。[整曲工作流](../vibekara/SKILL.md#从素材到交付)
 
-复用工程或采用快照指定的编译环境。评审与导出都应加载同一份 Namioto 和 kara-templater。[验证编译环境](../../docs/preferences.md#验证字幕编译环境)
+复用工程或采用快照指定的编译环境。首次缺少环境时，按[安装教程](../../INSTALL.md)配置共享 uv 环境。评审与导出都应加载同一份 Namioto 和 kara-templater。[验证编译环境](../../docs/preferences.md#验证字幕编译环境)
 
 | 已有输入 | 构建方式 |
 | --- | --- |
@@ -23,7 +23,7 @@ description: 从 Namioto 工程和模板或评审采用快照构建整曲 Hook�
 
 ## 合成与续作
 
-用现有歌曲构建入口，或按 kara-templater 的 [Hook 播放指南](https://github.com/sitiyou/python-kara-templater/blob/main/docs/guides/gpu-rendering.md) 使用 FFmpeg 的 Vulkan/libplacebo 叠加。视频沿用原曲零点，先生成目标帧率和画幅的画面，再叠加同帧率的 Hook。只有音频时，优先用已确认的封面。用户未指定画面且无可用封面时，可用匹配画布比例的中性底色。
+用现有歌曲构建入口，或按 kara-templater 的 [Hook 播放指南](https://github.com/sitiyou/python-kara-templater/blob/main/docs/output/hook.md) 使用 FFmpeg 的 Vulkan/libplacebo 叠加。视频沿用原曲零点，先生成目标帧率和画幅的画面，再叠加同帧率的 Hook。只有音频时，优先用已确认的封面。用户未指定画面且无可用封面时，可用匹配画布比例的中性底色。
 
 伴奏版使用对齐后的同版官方伴奏。只有缺少同版官方伴奏时，才采用经素材阶段验收的分离伴奏。时钟一致时，复用原唱版的视频流并换入所选伴奏。
 

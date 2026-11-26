@@ -8,6 +8,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from kara_previwer.paths import vibekara_home
+
 
 def review_parser(
     description: str | None, *, session: bool = False, port: bool = False
@@ -16,11 +18,7 @@ def review_parser(
     parser.add_argument(
         "--root",
         type=Path,
-        default=Path(
-            os.environ.get(
-                "KARA_REVIEW_ROOT", Path.home() / ".local/state/kara-previwer"
-            )
-        ),
+        default=Path(os.environ.get("KARA_REVIEW_ROOT") or vibekara_home() / "review").expanduser(),
     )
     if port:
         parser.add_argument("--port", type=int, default=18673)

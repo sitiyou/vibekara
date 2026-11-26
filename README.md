@@ -29,29 +29,21 @@ vibekara 是给 AI agent 制作卡拉 OK 用的 skill。把歌曲和手头的素
 
 ## 安装
 
-在本仓库根目录执行以下命令，将四个 skill 链接到 agent 的发现目录。默认位置为 `~/.agents/skills`，其他宿主可设置 `AGENT_SKILLS_DIR`。
+把下面这段话复制给你的 AI agent，或者按 [INSTALL.md](INSTALL.md) 手动安装。
 
-```sh
-skills_dir="${AGENT_SKILLS_DIR:-$HOME/.agents/skills}"
-mkdir -p "$skills_dir"
-for skill in "$PWD"/skills/*; do
-  target="$skills_dir/$(basename "$skill")"
-  [ "$skill" -ef "$target" ] || ln -sT "$skill" "$target"
-done
+```text
+请从 https://github.com/sitiyou/vibekara 安装 vibekara。先阅读仓库的 INSTALL.md，
+复用本机已有工具，按默认路径配置 uv 环境并为当前 agent 注册 Skill。
+如果缺少需要管理员权限的系统依赖，请告诉我具体缺项和安装入口。
+环境和 Skill 配好后，告诉我 checkout、Python 解释器和 Skill 的位置。
 ```
-
-先查找本机已有工具和项目环境，再安装当前阶段缺少的工具。[工具复用](docs/preferences.md#查找本机工具)
-
-- **打轴**需要 Namioto 编辑器和 CLI，并将上游的 `skills/namioto-nicokara` 链接到同一 skills 目录。[Namioto 安装说明](https://github.com/sitiyou/namioto)
-- **评审与 Hook**使用一个 Python 3.14 渲染环境，安装 Namioto 的工程读取器和支持可编辑组件的 kara-templater，并准备目标字体。发布方案时将这个解释器填入 `compiler.python`。编写或调整模板时，将上游的 `skills/kara-templater` 链接到同一目录。浏览器评审服务需要 Python 3.11+、ffprobe 和 Fontconfig。[kara-templater](https://github.com/sitiyou/python-kara-templater) · [启动评审服务](kara-previwer/README.md#启动)
-- **导出视频**需要 FFmpeg、ffprobe，以及可用的 Vulkan 设备和 FFmpeg 的 `libplacebo` 滤镜。
 
 ## 从 Python 导入 Namioto 工程
 
-在 vibekara 仓库根目录，用装有 Namioto 和 kara-templater 的 Python 运行[渲染脚本](skills/vibekara-export/assets/render_hook.py)。
+在 vibekara 仓库根目录用 [安装教程](INSTALL.md) 输出的解释器运行[渲染脚本](skills/vibekara-export/assets/render_hook.py)。
 
 ```sh
-python skills/vibekara-export/assets/render_hook.py song.nto lyrics.hook
+~/.vibekara/.venv/bin/python skills/vibekara-export/assets/render_hook.py song.nto lyrics.hook
 ```
 
 自定义导出时，将本仓库的 `skills/vibekara-export/assets` 加入 Python 的模块搜索路径，再导入 [import_nto.py](skills/vibekara-export/assets/import_nto.py)。`load_nto()` 直接把保存的 `.nto` 读成内存里的 `Document`，包含歌词、分段读音、章节、声部和 BPM。导出脚本决定使用哪些字体、轨道、特效和输出格式。
@@ -80,8 +72,8 @@ scene.export("lyrics.hook")
 | 任务 | Skill 入口 |
 | --- | --- |
 | 查找素材、核对录音版本和音画起点 | [vibekara-assets](skills/vibekara-assets/SKILL.md) |
-| 对齐歌词、读音和音符 | [namioto-nicokara](https://github.com/sitiyou/namioto/tree/main/skills/namioto-nicokara) |
-| 编写字体、排版和动效模板 | [kara-templater](https://github.com/sitiyou/python-kara-templater/tree/main/skills/kara-templater) |
+| 对齐歌词、读音和音符 | `deps/namioto/skills/namioto-nicokara/SKILL.md` |
+| 编写字体、排版和动效模板 | `deps/kara-templater/skills/kara-templater/SKILL.md` |
 | 发布候选方案、接收截帧反馈和采用参数 | [kara-previwer](skills/kara-previwer/SKILL.md) |
 | 从打轴工程或采用快照重建整曲 | [vibekara-export](skills/vibekara-export/SKILL.md) |
 

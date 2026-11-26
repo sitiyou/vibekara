@@ -1,0 +1,6 @@
+[submodule "deps/namioto"]
+	path = deps/namioto
+	url = https://github.com/sitiyou/namioto.git
+[submodule "deps/kara-templater"]
+	path = deps/kara-templater
+	url = https://github.com/sitiyou/python-kara-templater.git

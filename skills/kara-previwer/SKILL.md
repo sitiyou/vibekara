@@ -7,6 +7,8 @@ description: 在浏览器交给用户审核首次制作或修改的 karaoke 字�
 
 使用已保存的 `.nto` 和对齐后的媒体提交样式审核。模板设计参见 `kara-templater` 作者指南。评审和整曲导出复用同一个 Scene 构建函数。后续需要整曲交付时，从第一版起就用 `register(registry)` 注册可编译模板，并在方案中填写 `compiler.project`。[可运行模板](../vibekara-export/assets/template.py) · [方案格式](../../kara-previwer/README.md#方案文件)
 
+优先沿用已验证的编译环境。首次缺少环境时，按[安装教程](../../INSTALL.md)配置共享 uv 环境，并将返回的解释器填入 `compiler.python`。
+
 设计方向开放时，用同一份 `.nto` 和对齐媒体发布几套有明显差异的完整候选。为每套候选备好文字和排版属性，再选走字、动效和装饰。在「预览」用动态短片展示视觉差异，主播放器在同一时刻切换候选。用 `effect_components(script_height=...)` 按方案中的 `composition_height` 查可调范围。给适合即时比较的实色扫描线参数加绑定，排版类参数由评审器重建片段。各方案沿用默认的双行左右交替布局，用户主动要求时再调整。用户已指定效果时，围绕指定效果准备候选。[发布可编辑组合](../../kara-previwer/README.md#发布可编辑的组合) · [首轮方案、导唱符和验收](../../docs/first-review.md)
 
 整曲评审默认提供可拖动时间轴，把起播位置设在代表性入唱前，便于核对注音和换行。有对齐的 MV 或故事板时使用带原唱音轨的无字幕 MP4，由评审器实时叠字幕。指定片段时只发布对应时间范围。比较多个候选时共用媒体和时间区间，写清可见差异并核对字体候选。查询控件用 [catalog.py](../../kara-previwer/scripts/catalog.py)。[画面与时间轴](../../kara-previwer/README.md#整曲时间轴) · [复用收藏](../../kara-previwer/README.md#播放与收藏)

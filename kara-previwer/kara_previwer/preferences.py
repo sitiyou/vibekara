@@ -1,6 +1,5 @@
 """Small UTF-8 preference index with immutable versions of reusable recipes."""
 
-import fcntl
 import hashlib
 import json
 import os
@@ -10,7 +9,13 @@ import uuid
 from contextlib import contextmanager
 from pathlib import Path
 
+from .paths import vibekara_home
 from .store import Conflict
+
+if os.name == "nt":
+    import msvcrt
+else:
+    import fcntl
 
 LINK = re.compile(
     r"^- \[([^\[\]\n]+)\]\(templates/([a-z0-9-]+)/(?:([0-9a-f]{32})/)?\)(?: — (.*))?$"
@@ -36,10 +41,7 @@ def atomic(path, data):
 
 class Preferences:
     def __init__(self, root=None):
-        self.root = Path(
-            root
-            or Path(os.getenv("XDG_CONFIG_HOME", Path.home() / ".config")) / "vibekara"
-        )
+        self.root = Path(root) if root is not None else vibekara_home()
         self.file = self.root / "preferences.md"
         self.recovery = self.root / ".last-valid.md"
 
@@ -134,12 +136,20 @@ class Preferences:
     @contextmanager
     def edit(self, digest):
         self.root.mkdir(parents=True, exist_ok=True)
-        with (self.root / ".lock").open("a") as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX)
-            current = self.read()
-            if current["digest"] != digest:
-                raise Conflict("偏好已更改，请重新读取后合并")
-            yield current
+        with (self.root / ".lock").open("a+b") as lock:
+            if os.name == "nt":
+                lock.seek(0)
+                msvcrt.locking(lock.fileno(), msvcrt.LK_LOCK, 1)
+            else:
+                fcntl.flock(lock, fcntl.LOCK_EX)
+            try:
+                current = self.read()
+                if current["digest"] != digest:
+                    raise Conflict("偏好已更改，请重新读取后合并")
+                yield current
+            finally:
+                if os.name == "nt":
+                    msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
 
     def write(self, content):
         data = content.encode()

@@ -6,6 +6,8 @@ build/
 dist/
 .pytest_cache/
 .ruff_cache/
+/AGENTS.md
+/RELEASE.md
 TODO.md
 *PLAN.md
 /docs/preferences-design.md
