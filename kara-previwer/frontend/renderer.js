@@ -1,5 +1,10 @@
-export function materialValues(proposal, values) {
-  return Object.fromEntries((proposal.material_fields ?? []).map(name => [name, values[name]]));
+import { compositionValues } from "./composition";
+
+export function materialValues(proposal, values, composition) {
+  return {
+    ...Object.fromEntries((proposal.material_fields ?? []).map(name => [name, values[name]])),
+    ...compositionValues(composition),
+  };
 }
 
 export function sameValues(left, right) {
@@ -7,12 +12,12 @@ export function sameValues(left, right) {
     && Object.keys(left).every(name => left[name] === right[name]);
 }
 
-export async function nativeFrame(media, request, currentValues, valid) {
+export async function nativeFrame(media, request, currentValues, valid, same = sameValues) {
   while (valid()) {
     const values = currentValues();
     const {video} = await request(values);
     if (!valid()) break;
-    if (!sameValues(values, currentValues())) continue;
+    if (!same(values, currentValues())) continue;
     if (media.getAttribute("src") !== video || media.readyState < 2) {
       await new Promise((resolve, reject) => {
         const events = new AbortController();
@@ -29,7 +34,7 @@ export async function nativeFrame(media, request, currentValues, valid) {
         if (valid()) throw error;
       });
     }
-    if (valid() && sameValues(values, currentValues())) return {video, values};
+    if (valid() && same(values, currentValues())) return {video, values};
   }
   return null;
 }

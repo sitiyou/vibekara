@@ -1,23 +1,34 @@
 import React, { useEffect, useState } from "react";
+import { ChevronRight } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./cult/base-select";
 
-export function Library({ api, snapshot, ready, accepted, refresh }) {
-  const [prefs, setPrefs] = useState(null),
-    [key, select] = useState("");
-  const [name, setName] = useState(""),
-    [description, describe] = useState("");
-  const [message, report] = useState(""),
-    [busy, setBusy] = useState(false);
+export function Library({ api, snapshot, ready, canSave, accepted, refresh }) {
+  const [prefs, setPrefs] = useState(null);
+  const [key, select] = useState("");
+  const [name, setName] = useState("");
+  const [description, describe] = useState("");
+  const [message, report] = useState("");
+  const [busy, setBusy] = useState(false);
   const [draft, edit] = useState("");
+
   function load(p) {
     setPrefs(p);
     edit(p.text);
     report(p.error || "");
   }
+
   useEffect(() => {
     api("preferences")
       .then(load)
       .catch((e) => report(e.message));
   }, []);
+
   async function act(action) {
     setBusy(true);
     try {
@@ -40,83 +51,164 @@ export function Library({ api, snapshot, ready, accepted, refresh }) {
       setBusy(false);
     }
   }
+
   return (
-    <fieldset disabled={busy || !prefs}>
-      <legend>我的模板</legend>
-      <label>
-        模板收藏
-        <select
-          value={key}
-          onChange={(e) => {
-            select(e.target.value);
-            const entry = prefs.templates.find((i) => i.id === e.target.value);
+    <fieldset className="library-form" disabled={busy || !prefs}>
+      <div className="library-field">
+        <span>已收藏模板</span>
+        <Select
+          value={key || "__new__"}
+          items={[
+            { value: "__new__", label: "新收藏" },
+            ...(prefs?.templates ?? []).map((i) => ({
+              value: i.id,
+              label: i.name,
+            })),
+          ]}
+          onValueChange={(nextVal) => {
+            const nextKey = nextVal === "__new__" ? "" : nextVal;
+            select(nextKey);
+            const entry = prefs?.templates.find((i) => i.id === nextKey);
             setName(entry?.name || "");
             describe(entry?.description || "");
           }}
         >
-          <option value="">新收藏</option>
-          {prefs?.templates.map((i) => (
-            <option key={i.id} value={i.id}>
-              {i.name}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger aria-label="已收藏模板">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent align="start">
+            <SelectItem value="__new__">新收藏</SelectItem>
+            {prefs?.templates.map((i) => (
+              <SelectItem key={i.id} value={i.id}>
+                {i.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <label className="library-field">
+        <span>名称</span>
+        <input
+          className="studio-input"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="给这套样式起个名字…"
+        />
       </label>
-      <label>
-        名称
-        <input value={name} onChange={(e) => setName(e.target.value)} />
+
+      <label className="library-field">
+        <span>说明</span>
+        <input
+          className="studio-input"
+          value={description}
+          onChange={(e) => describe(e.target.value)}
+          placeholder="简短记录适用场景或风格…"
+        />
       </label>
-      <label>
-        说明
-        <input value={description} onChange={(e) => describe(e.target.value)} />
-      </label>
-      <div className="buttons">
-        <button disabled={!ready || !name} onClick={() => act("add")}>
-          另存当前模板
-        </button>
+
+      <div className="library-actions">
+        {canSave && (
+          <button
+            type="button"
+            className="btn btn-sm"
+            disabled={!name}
+            onClick={() => act("add")}
+          >
+            另存当前模板
+          </button>
+        )}
         {key && (
           <>
-            <button disabled={accepted || !ready} onClick={() => act("reuse")}>
+            <button
+              type="button"
+              className="btn btn-sm btn-primary"
+              disabled={accepted || !ready}
+              onClick={() => act("reuse")}
+            >
               在本曲使用
             </button>
-            <button disabled={!ready || !name} onClick={() => act("update")}>
-              用当前选值更新
+            {canSave && (
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={!name}
+                onClick={() => act("update")}
+              >
+                用当前选值更新
+              </button>
+            )}
+            <button type="button" className="btn btn-sm" onClick={() => act("rename")}>
+              保存名称和说明
             </button>
-            <button onClick={() => act("rename")}>保存名称和说明</button>
-            <button onClick={() => act("remove")}>移出收藏</button>
+            <button
+              type="button"
+              className="btn btn-sm btn-danger-ghost"
+              onClick={() => act("remove")}
+            >
+              移出收藏
+            </button>
           </>
         )}
       </div>
-      <details>
-        <summary>编辑个人偏好</summary>
-        <textarea
-          aria-label="个人偏好 Markdown"
-          value={draft}
-          onChange={(e) => edit(e.target.value)}
-        />
-        <small>{new TextEncoder().encode(draft).length} / 4096 字节</small>
-        <button onClick={() => act("preferences")}>保存偏好</button>
-        {prefs?.last_valid && (
-          <button onClick={() => edit(prefs.last_valid)}>
-            取回上次有效内容
-          </button>
-        )}
-        <button
-          onClick={async () => {
-            try {
-              const latest = await api("preferences");
-              setPrefs(latest);
-              report("已读取当前文件，请合并后保存");
-            } catch (e) {
-              report(e.message);
-            }
-          }}
-        >
-          读取最新内容以合并
-        </button>
-        {prefs && prefs.text !== draft && <pre>{prefs.text}</pre>}
+
+      <details className="studio-details">
+        <summary>
+          <ChevronRight />
+          编辑个人偏好（Markdown）
+        </summary>
+        <div className="studio-details-body">
+          <textarea
+            className="studio-textarea"
+            aria-label="个人偏好 Markdown"
+            value={draft}
+            onChange={(e) => edit(e.target.value)}
+          />
+          <div className="library-prefs-meta">
+            <span>{new TextEncoder().encode(draft).length} / 4096 字节</span>
+            <div className="library-actions">
+              {prefs?.last_valid && (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  onClick={() => edit(prefs.last_valid)}
+                >
+                  取回上次有效
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn btn-sm"
+                onClick={async () => {
+                  try {
+                    const latest = await api("preferences");
+                    setPrefs(latest);
+                    report("已读取当前文件，请合并后保存");
+                  } catch (e) {
+                    report(e.message);
+                  }
+                }}
+              >
+                读取最新内容
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-primary"
+                onClick={() => act("preferences")}
+              >
+                保存偏好
+              </button>
+            </div>
+          </div>
+          {prefs && prefs.text !== draft && <pre className="library-diff">{prefs.text}</pre>}
+        </div>
       </details>
-      <output>{message}</output>
+
+      {message && (
+        <output style={{ fontSize: "var(--text-xs)", color: "var(--accent)" }}>
+          {message}
+        </output>
+      )}
     </fieldset>
   );
 }

@@ -1,0 +1,401 @@
+{
+  "band-brighten": {
+    "poster": "effect-previews/sweep-brighten.jpg",
+    "src": "effect-previews/sweep-brighten.mp4",
+    "startAt": 1.45
+  },
+  "band-follow-after": {
+    "poster": "effect-previews/sweep-follow-after.jpg",
+    "src": "effect-previews/sweep-follow-after.mp4",
+    "startAt": 1.45
+  },
+  "band-follow-before": {
+    "poster": "effect-previews/sweep-follow-before.jpg",
+    "src": "effect-previews/sweep-follow-before.mp4",
+    "startAt": 1.45
+  },
+  "band-gradient": {
+    "poster": "effect-previews/sweep-gradient.jpg",
+    "src": "effect-previews/sweep-gradient.mp4",
+    "startAt": 1.45
+  },
+  "bars-cue": {
+    "poster": "effect-previews/bars-cue.jpg",
+    "src": "effect-previews/bars-cue.mp4",
+    "startAt": 0.5
+  },
+  "decoration-none": {
+    "poster": "effect-previews/decoration-none.jpg",
+    "src": "effect-previews/decoration-none.mp4",
+    "startAt": 1.35
+  },
+  "decoration-note": {
+    "poster": "effect-previews/decoration-note.jpg",
+    "src": "effect-previews/decoration-note.mp4",
+    "startAt": 1.35
+  },
+  "decoration-petal": {
+    "poster": "effect-previews/decoration-petal.jpg",
+    "src": "effect-previews/decoration-petal.mp4",
+    "startAt": 1.35
+  },
+  "decoration-ripple": {
+    "poster": "effect-previews/decoration-ripple.jpg",
+    "src": "effect-previews/decoration-ripple.mp4",
+    "startAt": 1.35
+  },
+  "decoration-snow": {
+    "poster": "effect-previews/decoration-snow.jpg",
+    "src": "effect-previews/decoration-snow.mp4",
+    "startAt": 1.35
+  },
+  "decoration-snow-solid": {
+    "poster": "effect-previews/decoration-snow-solid.jpg",
+    "src": "effect-previews/decoration-snow-solid.mp4",
+    "startAt": 1.35
+  },
+  "decoration-twinkle": {
+    "poster": "effect-previews/decoration-twinkle.jpg",
+    "src": "effect-previews/decoration-twinkle.mp4",
+    "startAt": 0.47
+  },
+  "decoration-twinkle-classic": {
+    "poster": "effect-previews/decoration-twinkle-classic.jpg",
+    "src": "effect-previews/decoration-twinkle-classic.mp4",
+    "startAt": 1.35
+  },
+  "default-recipe": {
+    "poster": "effect-previews/default-recipe.jpg",
+    "src": "effect-previews/default-recipe.mp4",
+    "startAt": 1.75
+  },
+  "drift-out": {
+    "poster": "effect-previews/drift-out.jpg",
+    "src": "effect-previews/drift-out.mp4",
+    "startAt": 0.9
+  },
+  "duotone": {
+    "poster": "effect-previews/duotone.jpg",
+    "src": "effect-previews/duotone.mp4",
+    "startAt": 1.75
+  },
+  "echo": {
+    "poster": "effect-previews/lyric-echo.jpg",
+    "src": "effect-previews/lyric-echo.mp4",
+    "startAt": 1.75
+  },
+  "entry-assemble-in": {
+    "poster": "effect-previews/entry-assemble-in.jpg",
+    "src": "effect-previews/entry-assemble-in.mp4",
+    "startAt": 0.5
+  },
+  "entry-char-drip": {
+    "poster": "effect-previews/entry-char-drip.jpg",
+    "src": "effect-previews/entry-char-drip.mp4",
+    "startAt": 0.5
+  },
+  "entry-char-fade": {
+    "poster": "effect-previews/entry-char-fade.jpg",
+    "src": "effect-previews/entry-char-fade.mp4",
+    "startAt": 0.5
+  },
+  "entry-fade": {
+    "poster": "effect-previews/entry-fade.jpg",
+    "src": "effect-previews/entry-fade.mp4",
+    "startAt": 0.5
+  },
+  "entry-glow-in": {
+    "poster": "effect-previews/entry-glow-in.jpg",
+    "src": "effect-previews/entry-glow-in.mp4",
+    "startAt": 0.5
+  },
+  "entry-none": {
+    "poster": "effect-previews/entry-none.jpg",
+    "src": "effect-previews/entry-none.mp4",
+    "startAt": 0.5
+  },
+  "entry-note": {
+    "poster": "effect-previews/entry-note.jpg",
+    "src": "effect-previews/entry-note.mp4",
+    "startAt": 0.5
+  },
+  "entry-petal": {
+    "poster": "effect-previews/entry-petal.jpg",
+    "src": "effect-previews/entry-petal.mp4",
+    "startAt": 0.5
+  },
+  "entry-ripple": {
+    "poster": "effect-previews/entry-ripple.jpg",
+    "src": "effect-previews/entry-ripple.mp4",
+    "startAt": 0.5
+  },
+  "entry-rise": {
+    "poster": "effect-previews/entry-rise.jpg",
+    "src": "effect-previews/entry-rise.mp4",
+    "startAt": 0.5
+  },
+  "entry-slide-in": {
+    "poster": "effect-previews/entry-slide-in.jpg",
+    "src": "effect-previews/entry-slide-in.mp4",
+    "startAt": 0.5
+  },
+  "entry-snow": {
+    "poster": "effect-previews/entry-snow.jpg",
+    "src": "effect-previews/entry-snow.mp4",
+    "startAt": 0.5
+  },
+  "entry-snow-solid": {
+    "poster": "effect-previews/entry-snow-solid.jpg",
+    "src": "effect-previews/entry-snow-solid.mp4",
+    "startAt": 0.5
+  },
+  "entry-sparkle": {
+    "poster": "effect-previews/entry-sparkle.jpg",
+    "src": "effect-previews/entry-sparkle.mp4",
+    "startAt": 0.5
+  },
+  "entry-spin-flip": {
+    "poster": "effect-previews/entry-spin-flip.jpg",
+    "src": "effect-previews/entry-spin-flip.mp4",
+    "startAt": 0.5
+  },
+  "entry-stretch-in": {
+    "poster": "effect-previews/entry-stretch-in.jpg",
+    "src": "effect-previews/entry-stretch-in.mp4",
+    "startAt": 0.23
+  },
+  "entry-tilt-pop": {
+    "poster": "effect-previews/entry-tilt-pop.jpg",
+    "src": "effect-previews/entry-tilt-pop.mp4",
+    "startAt": 0.5
+  },
+  "entry-tracking-in": {
+    "poster": "effect-previews/entry-tracking-in.jpg",
+    "src": "effect-previews/entry-tracking-in.mp4",
+    "startAt": 0.5
+  },
+  "entry-utopia": {
+    "poster": "effect-previews/entry-utopia.jpg",
+    "src": "effect-previews/entry-utopia.mp4",
+    "startAt": 0.5
+  },
+  "entry-wave-in": {
+    "poster": "effect-previews/entry-wave-in.jpg",
+    "src": "effect-previews/entry-wave-in.mp4",
+    "startAt": 0.5
+  },
+  "exit-char-drip": {
+    "poster": "effect-previews/exit-char-drip.jpg",
+    "src": "effect-previews/exit-char-drip.mp4",
+    "startAt": 1.35
+  },
+  "exit-char-fade": {
+    "poster": "effect-previews/exit-char-fade.jpg",
+    "src": "effect-previews/exit-char-fade.mp4",
+    "startAt": 1.35
+  },
+  "exit-converge-out": {
+    "poster": "effect-previews/exit-converge-out.jpg",
+    "src": "effect-previews/exit-converge-out.mp4",
+    "startAt": 1.35
+  },
+  "exit-dissolve-out": {
+    "poster": "effect-previews/exit-dissolve-out.jpg",
+    "src": "effect-previews/exit-dissolve-out.mp4",
+    "startAt": 1.35
+  },
+  "exit-fade": {
+    "poster": "effect-previews/exit-fade.jpg",
+    "src": "effect-previews/exit-fade.mp4",
+    "startAt": 1.35
+  },
+  "exit-glow-out": {
+    "poster": "effect-previews/exit-glow-out.jpg",
+    "src": "effect-previews/exit-glow-out.mp4",
+    "startAt": 1.35
+  },
+  "exit-none": {
+    "poster": "effect-previews/exit-none.jpg",
+    "src": "effect-previews/exit-none.mp4",
+    "startAt": 1.35
+  },
+  "exit-note": {
+    "poster": "effect-previews/exit-note.jpg",
+    "src": "effect-previews/exit-note.mp4",
+    "startAt": 1.35
+  },
+  "exit-petal": {
+    "poster": "effect-previews/exit-petal.jpg",
+    "src": "effect-previews/exit-petal.mp4",
+    "startAt": 1.35
+  },
+  "exit-ripple": {
+    "poster": "effect-previews/exit-ripple.jpg",
+    "src": "effect-previews/exit-ripple.mp4",
+    "startAt": 1.35
+  },
+  "exit-rise": {
+    "poster": "effect-previews/exit-rise.jpg",
+    "src": "effect-previews/exit-rise.mp4",
+    "startAt": 1.35
+  },
+  "exit-scatter-out": {
+    "poster": "effect-previews/exit-scatter-out.jpg",
+    "src": "effect-previews/exit-scatter-out.mp4",
+    "startAt": 1.35
+  },
+  "exit-slide-out": {
+    "poster": "effect-previews/exit-slide-out.jpg",
+    "src": "effect-previews/exit-slide-out.mp4",
+    "startAt": 1.35
+  },
+  "exit-snow": {
+    "poster": "effect-previews/exit-snow.jpg",
+    "src": "effect-previews/exit-snow.mp4",
+    "startAt": 1.35
+  },
+  "exit-snow-solid": {
+    "poster": "effect-previews/exit-snow-solid.jpg",
+    "src": "effect-previews/exit-snow-solid.mp4",
+    "startAt": 1.35
+  },
+  "exit-sparkle": {
+    "poster": "effect-previews/exit-sparkle.jpg",
+    "src": "effect-previews/exit-sparkle.mp4",
+    "startAt": 1.35
+  },
+  "exit-spin-flip": {
+    "poster": "effect-previews/exit-spin-flip.jpg",
+    "src": "effect-previews/exit-spin-flip.mp4",
+    "startAt": 1.35
+  },
+  "exit-stretch-out": {
+    "poster": "effect-previews/exit-stretch-out.jpg",
+    "src": "effect-previews/exit-stretch-out.mp4",
+    "startAt": 1.95
+  },
+  "exit-utopia": {
+    "poster": "effect-previews/exit-utopia.jpg",
+    "src": "effect-previews/exit-utopia.mp4",
+    "startAt": 1.35
+  },
+  "extrusion": {
+    "poster": "effect-previews/extrusion.jpg",
+    "src": "effect-previews/extrusion.mp4",
+    "startAt": 1.75
+  },
+  "fade-in": {
+    "poster": "effect-previews/fade-in.jpg",
+    "src": "effect-previews/fade-in.mp4",
+    "startAt": 1.75
+  },
+  "fade-out": {
+    "poster": "effect-previews/fade-out.jpg",
+    "src": "effect-previews/fade-out.mp4",
+    "startAt": 0.85
+  },
+  "glow": {
+    "poster": "effect-previews/glow.jpg",
+    "src": "effect-previews/glow.mp4",
+    "startAt": 1.75
+  },
+  "highlight-no-wipe": {
+    "poster": "effect-previews/highlight-no-wipe.jpg",
+    "src": "effect-previews/highlight-no-wipe.mp4",
+    "startAt": 1.65
+  },
+  "highlight-none": {
+    "poster": "effect-previews/highlight-none.jpg",
+    "src": "effect-previews/highlight-none.mp4",
+    "startAt": 1.65
+  },
+  "highlight-scanline": {
+    "poster": "effect-previews/highlight-scanline.jpg",
+    "src": "effect-previews/highlight-scanline.mp4",
+    "startAt": 1.65
+  },
+  "highlight-utopia": {
+    "poster": "effect-previews/highlight-utopia.jpg",
+    "src": "effect-previews/highlight-utopia.mp4",
+    "startAt": 1.65
+  },
+  "highlight-utopia-scanline": {
+    "poster": "effect-previews/highlight-utopia-scanline.jpg",
+    "src": "effect-previews/highlight-utopia-scanline.mp4",
+    "startAt": 1.65
+  },
+  "highlight-zoom-pulse": {
+    "poster": "effect-previews/highlight-zoom-pulse.jpg",
+    "src": "effect-previews/highlight-zoom-pulse.mp4",
+    "startAt": 1.65
+  },
+  "highlight-zoom-pulse-scanline": {
+    "poster": "effect-previews/highlight-zoom-pulse-scanline.jpg",
+    "src": "effect-previews/highlight-zoom-pulse-scanline.mp4",
+    "startAt": 1.65
+  },
+  "jump": {
+    "poster": "effect-previews/jump.jpg",
+    "src": "effect-previews/jump.mp4",
+    "startAt": 1.75
+  },
+  "lyric-gradient": {
+    "poster": "effect-previews/lyric-gradient.jpg",
+    "src": "effect-previews/lyric-gradient.mp4",
+    "startAt": 1.75
+  },
+  "petal": {
+    "poster": "effect-previews/petal.jpg",
+    "src": "effect-previews/petal.mp4",
+    "startAt": 1.75
+  },
+  "scale-pulse": {
+    "poster": "effect-previews/scale-pulse.jpg",
+    "src": "effect-previews/scale-pulse.mp4",
+    "startAt": 1.75
+  },
+  "signal-cue": {
+    "poster": "effect-previews/signal-cue.jpg",
+    "src": "effect-previews/signal-cue.mp4",
+    "startAt": 0.5
+  },
+  "slide": {
+    "poster": "effect-previews/slide.jpg",
+    "src": "effect-previews/slide.mp4",
+    "startAt": 1.75
+  },
+  "soft-front": {
+    "poster": "effect-previews/soft-front.jpg",
+    "src": "effect-previews/soft-front.mp4"
+  },
+  "sparkle": {
+    "poster": "effect-previews/sparkle.jpg",
+    "src": "effect-previews/sparkle.mp4",
+    "startAt": 1.75
+  },
+  "stroke-flash": {
+    "poster": "effect-previews/stroke-flash.jpg",
+    "src": "effect-previews/stroke-flash.mp4",
+    "startAt": 0.6
+  },
+  "text-cue": {
+    "poster": "effect-previews/text-cue.jpg",
+    "src": "effect-previews/text-cue.mp4",
+    "startAt": 0.5
+  },
+  "transition-stagger": {
+    "poster": "effect-previews/entry-char-fade.jpg",
+    "src": "effect-previews/entry-char-fade.mp4",
+    "startAt": 0.5
+  },
+  "tween-scale": {
+    "poster": "effect-previews/tween.jpg",
+    "src": "effect-previews/tween.mp4",
+    "startAt": 1.75
+  },
+  "volume-cue": {
+    "poster": "effect-previews/volume-cue.jpg",
+    "src": "effect-previews/volume-cue.mp4",
+    "startAt": 0.5
+  }
+}
