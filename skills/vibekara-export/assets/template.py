@@ -16,8 +16,8 @@ from kara_templater import (
 )
 
 if TYPE_CHECKING:
-    from namioto.karaoke.song import TemplateSong
-    from namioto.karaoke.templates import Registry
+    from kara_previwer.templates import Registry
+    from kara_previwer.timing import TemplateSong
 
 
 def build(document: Document, *, preview_interval: tuple[float, float] | None = None) -> Scene:

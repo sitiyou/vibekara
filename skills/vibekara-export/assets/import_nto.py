@@ -1,10 +1,15 @@
 """Import a saved Namioto project into a Python karaoke template."""
 
+import sys
 from dataclasses import replace
 from pathlib import Path
 
 from kara_templater import Document, Style
-from namioto.karaoke.song_input import load_project_input
+
+# The integration runs directly from the checkout.
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "kara-previwer"))
+
+from kara_previwer.timing import load_project_song
 
 
 def load_nto(
@@ -22,7 +27,7 @@ def load_nto(
     and `top`, with optional `-furigana` companion styles. `harmony_tracks`
     selects comma-separated channels for the `top` label.
     """
-    song = load_project_input(path, offset_ms=offset_ms, harmony_tracks=harmony_tracks)
+    song = load_project_song(path, offset_ms=offset_ms, harmony_tracks=harmony_tracks)
     return Document.create(
         width=width,
         height=height,

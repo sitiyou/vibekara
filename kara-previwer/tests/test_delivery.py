@@ -42,6 +42,40 @@ class DeliveryTest(unittest.TestCase):
             with patch("kara_previwer.delivery.compile_job", side_effect=compile_fixture):
                 rebuild(approved, root / "out.hook")
 
+    def test_previous_recipe_imports_can_read_a_saved_project(self):
+        try:
+            from kara_previwer.compiler import load_project_song, load_recipe
+            from kara_previwer.timing import TemplateSong
+            from namioto import project
+        except ImportError:
+            self.skipTest("requires the Namioto and kara-templater rendering environment")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            saved = root / "song.nto"
+            project.save(project.Project(
+                audio="missing.wav",
+                lyrics=project.Lyrics(text="京[きょう]\n---\n@1{あ}"),
+                notes=(project.Note(1.0001, 0.6, 60, 0), project.Note(2, 0.5, 62, 0), project.Note(3, 1, 64, 1)),
+            ), saved)
+            script = root / "template.py"
+            script.write_text(
+                "from namioto.karaoke.song import TemplateSong\n"
+                "from namioto.karaoke.templates import Registry\n"
+                "def build(song: TemplateSong, values): return song\n"
+                "def register(registry: Registry):\n"
+                "    registry.add(id='saved', title='Saved', build=build, semantic=True)\n",
+                encoding="utf-8",
+            )
+            recipe = load_recipe(str(script), "saved")
+            song = recipe.build(load_project_song(str(saved), -100, "1"), {})
+            self.assertIsInstance(song, TemplateSong)
+            self.assertEqual(song.tracks, {"line-1": 0, "line-2": 1})
+            self.assertEqual([(line.chapter, line.style) for line in song.sources], [("0", "default"), ("1", "top")])
+            first, second = song.sources[0].lyrics.units[0].segments
+            self.assertAlmostEqual(first.timing.start, 0.9001)
+            self.assertAlmostEqual(second.timing.start, 1.9)
+            self.assertIsNotNone(first.ruby)
+
     def test_snapshot_keeps_timing_and_can_retry_a_failed_hook_build(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

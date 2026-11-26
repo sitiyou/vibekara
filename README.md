@@ -43,7 +43,7 @@ done
 先查找本机已有工具和项目环境，再安装当前阶段缺少的工具。[工具复用](docs/preferences.md#查找本机工具)
 
 - **打轴**需要 Namioto 编辑器和 CLI，并将上游的 `skills/namioto-nicokara` 链接到同一 skills 目录。[Namioto 安装说明](https://github.com/sitiyou/namioto)
-- **字幕渲染**需要包含工程读取器的 Namioto、支持 `PreparedHook.material_inputs()` 的 kara-templater 和目标字体。使用开发版时，在渲染环境运行 `python -m pip install /path/to/kara-templater`。编写或调整模板时，将上游的 `skills/kara-templater` 链接到同一目录。浏览器评审服务直接从源码运行，需要 Python 3.11+、ffprobe 和 Fontconfig。[kara-templater](https://github.com/sitiyou/python-kara-templater) · [启动评审服务](kara-previwer/README.md#启动)
+- **评审与 Hook**使用一个 Python 3.14 渲染环境，安装 Namioto 的工程读取器和支持可编辑组件的 kara-templater，并准备目标字体。发布方案时将这个解释器填入 `compiler.python`。编写或调整模板时，将上游的 `skills/kara-templater` 链接到同一目录。浏览器评审服务需要 Python 3.11+、ffprobe 和 Fontconfig。[kara-templater](https://github.com/sitiyou/python-kara-templater) · [启动评审服务](kara-previwer/README.md#启动)
 - **导出视频**需要 FFmpeg、ffprobe，以及可用的 Vulkan 设备和 FFmpeg 的 `libplacebo` 滤镜。
 
 ## 从 Python 导入 Namioto 工程
@@ -54,7 +54,7 @@ done
 python skills/vibekara-export/assets/render_hook.py song.nto lyrics.hook
 ```
 
-自定义导出时，把 [import_nto.py](skills/vibekara-export/assets/import_nto.py) 放到脚本旁边。`load_nto()` 直接把保存的 `.nto` 读成内存里的 `Document`，包含歌词、分段读音、章节、声部和 BPM。导出脚本决定使用哪些字体、轨道、特效和输出格式。
+自定义导出时，将本仓库的 `skills/vibekara-export/assets` 加入 Python 的模块搜索路径，再导入 [import_nto.py](skills/vibekara-export/assets/import_nto.py)。`load_nto()` 直接把保存的 `.nto` 读成内存里的 `Document`，包含歌词、分段读音、章节、声部和 BPM。导出脚本决定使用哪些字体、轨道、特效和输出格式。
 
 ```python
 from kara_templater import KaraokeEffects, Style, Track, build_lyric_scene

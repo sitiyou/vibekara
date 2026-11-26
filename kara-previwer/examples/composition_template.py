@@ -2,6 +2,8 @@
 
 from collections.abc import Mapping
 
+from kara_previwer.templates import Registry
+from kara_previwer.timing import TemplateSong
 from kara_templater import (
     Box,
     ComponentSelection,
@@ -16,8 +18,6 @@ from kara_templater import (
     build_lyric_scene,
     compose_track,
 )
-from namioto.karaoke.song import TemplateSong
-from namioto.karaoke.templates import Registry
 
 HEIGHT = 720
 WIDTH = 1280

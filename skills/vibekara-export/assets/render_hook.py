@@ -38,18 +38,18 @@ def main() -> None:
     try:
         timing = {"offset_ms": args.offset_ms, "harmony_tracks": args.harmony_tracks}
         if args.script:
-            from namioto.karaoke.song_input import load_project_input
-            from namioto.karaoke.templates import load_templates
+            from kara_previwer.templates import load_templates
+            from kara_previwer.timing import load_project_song
 
             recipe = load_templates([script]).get(args.template)
             if not recipe.semantic or "hook" not in recipe.formats:
                 raise ValueError("the template must accept structured lyrics and support Hook output")
-            scene = recipe.build(load_project_input(args.project, **timing), recipe.resolve(parameters))
+            scene = recipe.build(load_project_song(args.project, **timing), recipe.resolve(parameters))
         else:
             scene = build(load_nto(args.project, **timing))
         args.output.parent.mkdir(parents=True, exist_ok=True)
         scene.export(args.output, fps=args.fps)
-    except (OSError, ValueError, RuntimeError) as error:
+    except (OSError, TypeError, ValueError, RuntimeError) as error:
         parser.exit(1, f"{error}\n")
 
 

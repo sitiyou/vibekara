@@ -14,37 +14,33 @@ from pathlib import Path
 
 @lru_cache(maxsize=8)
 def load_recipe(script, name):
-    from namioto.karaoke.templates import load_templates
+    from kara_previwer.templates import load_templates
 
     return load_templates([script]).get(name)
 
 
 @lru_cache(maxsize=4)
 def load_song(krc, midi, offset_ms, colors, wavetone, track_style=()):
-    from namioto.karaoke.export_settings import ExportSettings
-    from namioto.subtitle import build_song
+    from namioto.karaoke.song_input import build_song
 
-    return build_song(
-        Path(krc).read_text(),
-        Path(midi).read_bytes(),
-        semantic=True,
-        settings=ExportSettings(offset_ms=offset_ms, channel_colors=dict(colors), track_style=dict(track_style)),
-        wavetone=wavetone,
-    )
+    from kara_previwer.timing import template_song
+
+    timing = build_song(Path(krc).read_text(), Path(midi).read_bytes(), wavetone=wavetone)
+    return template_song(timing, offset_ms=offset_ms, colors=dict(colors), track_style=dict(track_style))
 
 
 @lru_cache(maxsize=4)
 def load_timing_directory(directory):
-    from namioto.karaoke.song_input import load_song_input
+    from kara_previwer.timing import load_timing_directory as read_timing_directory
 
-    return load_song_input(directory)
+    return read_timing_directory(directory)
 
 
 @lru_cache(maxsize=4)
 def load_project_song(path, offset_ms, harmony_tracks):
-    from namioto.karaoke.song_input import load_project_input
+    from kara_previwer.timing import load_project_song as read_project_song
 
-    return load_project_input(path, offset_ms=offset_ms, harmony_tracks=harmony_tracks)
+    return read_project_song(path, offset_ms=offset_ms, harmony_tracks=harmony_tracks)
 
 
 def timing_key(job):
@@ -240,10 +236,8 @@ def inspect_lyrics(scene, interval):
 
 def run(job):
     recipe = load_recipe(job["script"], job["template"])
-    if recipe.id == "default" or not recipe.semantic:
-        raise ValueError(
-            "review requires an external recipe registered with semantic=True"
-        )
+    if not recipe.semantic or "hook" not in recipe.formats:
+        raise ValueError("review requires a recipe registered with semantic=True and Hook support")
     values = recipe.resolve(job.get("values", {}))
     if job.get("describe"):
         schema = {
@@ -306,7 +300,7 @@ def module_stamp(path):
 
 def track_producer_modules(watched):
     for name, module in sys.modules.copy().items():
-        if name.partition(".")[0] in {"kara_templater", "namioto"}:
+        if name.partition(".")[0] in {"kara_previwer", "kara_templater", "namioto"}:
             filename = getattr(module, "__file__", None)
             if filename:
                 path = Path(filename)
@@ -315,6 +309,7 @@ def track_producer_modules(watched):
 
 
 if __name__ == "__main__":
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     watched = {Path(__file__): module_stamp(Path(__file__))}
     for line in sys.stdin:
         if any(module_stamp(path) != stamp for path, stamp in watched.items()):
@@ -323,7 +318,7 @@ if __name__ == "__main__":
         try:
             with redirect_stdout(sys.stderr):
                 result = {"result": run(json.loads(line))}
-        except Exception:  # noqa: BLE001 - report user template errors at the subprocess boundary
+        except Exception:  # noqa: BLE001 - report template errors across the subprocess boundary
             result = {"error": traceback.format_exc()}
         track_producer_modules(watched)
         print(json.dumps(result), flush=True)

@@ -21,7 +21,7 @@ class SceneCacheTest(unittest.TestCase):
                 ])])),
             )
 
-        recipe = Mock(id="external", semantic=True)
+        recipe = Mock(id="external", semantic=True, formats=("hook",))
         recipe.resolve.side_effect = lambda values: values
         recipe.build.return_value.track_settings = ()
         recipe.build.return_value.plans = (
@@ -45,7 +45,7 @@ class SceneCacheTest(unittest.TestCase):
             self.assertEqual(all_tracks["details"]["harmony"]["start"], 11.5)
 
     def test_compiler_reuses_full_scene_across_windows_and_invalidates_inputs(self):
-        recipe = Mock(id="external", semantic=True)
+        recipe = Mock(id="external", semantic=True, formats=("hook",))
         recipe.resolve.side_effect = lambda values: values
         job = {
             "script": "template",

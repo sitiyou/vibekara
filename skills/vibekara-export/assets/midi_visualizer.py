@@ -4,11 +4,11 @@
 import argparse
 import colorsys
 import math
+import sys
 from pathlib import Path
 from struct import pack
 
 from namioto import midi, project
-from namioto.karaoke.song_input import read_song_settings
 from namioto.project import Note
 from namioto.utils import write_text
 
@@ -193,7 +193,7 @@ def build_hook(lyrics: str, notes: list[Note], fps: int, offset_ms: int) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", type=Path, help="Namioto project or melody MIDI")
-    parser.add_argument("lyrics", type=Path, help="Namioto single-pass lyric hook")
+    parser.add_argument("lyrics", type=Path, help="Single-pass lyric Hook")
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--fps", type=int, required=True, help="Same integer frame rate as the lyric hook and renderer")
     parser.add_argument("--song-input", type=Path, help="Timing directory supplying the MIDI convention and offset")
@@ -211,8 +211,10 @@ def main() -> None:
         if args.song_input:
             if args.out.resolve() == (args.song_input / "song.json").resolve():
                 parser.error("Use an output file outside the input metadata path")
-            wavetone, settings = read_song_settings(args.song_input)
-            offset = settings.offset_ms
+            sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "kara-previwer"))
+            from kara_previwer.song_settings import read_song_settings
+
+            wavetone, offset, _, _ = read_song_settings(args.song_input)
         if from_project:
             channel = args.channel if args.channel is not None else 0
             notes = [note for note in project.load(args.source).notes if note.channel == channel]
@@ -223,7 +225,7 @@ def main() -> None:
         offset = offset if args.offset_ms is None else args.offset_ms
         hook = build_hook(args.lyrics.read_text(encoding="utf-8"), notes, args.fps, offset)
         write_text(args.out, hook)
-    except (OSError, EOFError, ValueError, RuntimeError) as error:
+    except (OSError, EOFError, TypeError, ValueError, RuntimeError) as error:
         parser.exit(1, f"{error}\n")
 
 

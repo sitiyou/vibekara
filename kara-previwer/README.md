@@ -63,6 +63,8 @@ python kara-previwer/scripts/rebuild_hook.py song/approved lyrics.hook
 }
 ```
 
+模板通过 `register(registry)` 注册，构建函数接收 `kara_previwer.timing.TemplateSong` 和参数值，再返回 Scene。评审和整曲构建共用这个入口。已有采用快照换用渲染环境时，可给 `rebuild_hook.py` 传 `--python`。
+
 模板可以用 kara-templater 的 `PaintInput` 将材质专用的颜色或数值绑定到同名字段。浏览器直接更新该参数，正式 Hook 在编译时使用完整选值。参与布局、覆盖、时序或跨字段校验的参数按预览范围重新编译。
 
 桌面预览支持 WebGL 2。无法使用它时，服务调用含 Vulkan/libplacebo 和 libvpx-vp9 的 FFmpeg 渲染所选片段，或使用 clip.fallback 中已提供的原生短片。编辑工作区可以调整设计和填写意见。暂停后可逐帧、点选或圈出问题。历史意见提供原帧和新版同一时刻的对照。
