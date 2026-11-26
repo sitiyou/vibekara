@@ -46,7 +46,7 @@ def forward(session):
             return
         thread, home, binary, cursor = binding
         for event in session.events(cursor):
-            if event["kind"] in ("feedback", "accept"):
+            if event["kind"] in ("feedback", "continue", "accept"):
                 notice = (
                     f"kara-previwer 评审事件 {event['token']}：会话 {session.root.name} "
                     f"第 {event['version']} 版，操作 {event['kind']}。"
@@ -54,7 +54,9 @@ def forward(session):
                     "按本对话约定处理。"
                 )
                 if event["kind"] == "accept":
-                    notice += "将本次采用的 values 应用到制作工程，重建并核对约定的交付物。"
+                    notice += "用本次采用的快照重建并核对约定的交付物。"
+                if event["kind"] == "continue":
+                    notice += "以下一轮的起点使用本次保存的组合和参数。"
                 notice += "同编号对应的交付物已核实完成时仅确认收件。"
                 result = subprocess.run(
                     [

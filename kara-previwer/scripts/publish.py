@@ -21,7 +21,7 @@ def main() -> None:
             (
                 event
                 for event in session.events(0)
-                if event.get("token") == args.feedback and event["kind"] == "feedback"
+                if event.get("token") == args.feedback and event["kind"] in {"feedback", "continue"}
             ),
             None,
         )

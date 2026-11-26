@@ -12,6 +12,7 @@ import tempfile
 from pathlib import Path
 from threading import Lock, Thread
 
+from .composition import material_values, normalize, structural_composition
 from .hook import unpack
 
 SONG_INPUT_FILES = ("lyrics.krc", "vocal.mid", "song.json")
@@ -94,7 +95,11 @@ def editing_clip(proposal, values):
     """Keep the published whole-song hook seekable and compile edits near the playhead."""
     clip = proposal["clip"]
     width = clip.get("edit_segment_frames")
-    if width and cache_values(proposal, values) != cache_values(proposal, proposal["values"]):
+    if width and (
+        cache_values(proposal, values) != cache_values(proposal, proposal["values"])
+        or structural_composition(proposal, proposal.get("composition"))
+        != structural_composition(proposal, proposal.get("published_composition", proposal.get("composition")))
+    ):
         return {**clip, "segment_frames": width}
     return clip
 
@@ -140,8 +145,19 @@ def prepare(session, manifest, inherited=None):
         )
     if not proposal.get("template") or proposal["template"] == "default":
         raise ValueError("review requires an external template")
-    if {"config", "material_fields", "material_fields_allowed"} & proposal.keys():
+    if {"config", "material_fields", "material_fields_allowed", "component_schema", "published_composition"} & proposal.keys():
         raise ValueError("preview bindings and config are generated from the selected template")
+    editable = "composition" in proposal
+    if editable:
+        tracks = proposal.get("composition_tracks")
+        height = proposal.get("composition_height", 1080)
+        if (
+            "compiler" not in proposal or not isinstance(tracks, dict) or not tracks
+            or any(not re.fullmatch(r"[a-z][a-z0-9_-]{0,31}", key) or not isinstance(label, str)
+                   or not label.strip() for key, label in tracks.items())
+            or type(height) is not int or not 1 <= height <= 8192
+        ):
+            raise ValueError("组合需要源模板、脚本高度和可编辑轨道")
     if "compiler" not in proposal and proposal.get("parameters"):
         raise ValueError("editable parameters require a compiler")
     fields = proposal.setdefault("parameters", [])
@@ -259,15 +275,21 @@ def prepare(session, manifest, inherited=None):
         os.replace(f.name, configs / key)
         proposal["config"] = key
         local = resolve_config(session.root, config)
-        schema = compile_job(local, describe=True)
+        describe = {"describe": True}
+        if editable:
+            describe.update(describe_composition=True, composition_height=height)
+        schema = compile_job(local, **describe)
         choices = {k: v for k, v in (inherited or {}).items() if k in schema["values"]}
         choices.update(proposal.get("values", {}))
         proposal.update(
-            compile_job(local, describe=True, values=choices) if choices else schema
+            compile_job(local, **describe, values=choices) if choices else schema
         )
+        if editable:
+            proposal["composition"] = normalize(proposal, proposal["composition"])
         if proposal.pop("material_fields_allowed", False):
             proposal.update(compile_job(
                 local, material_fields=True, values=proposal["values"], shared_scene="preview",
+                composition=proposal.get("composition"),
             ))
         proposal["hook"] = compiled(
             session, {**proposal, "clip": window}, proposal["values"]
@@ -287,7 +309,7 @@ def prepare(session, manifest, inherited=None):
 
 
 _workers = {}
-_worker_locks = {None: Lock(), "preview": Lock(), "lookahead": Lock(), "native": Lock()}
+_worker_locks = {None: Lock(), "preview": Lock(), "lookahead": Lock(), "native": Lock(), "metadata": Lock()}
 _ready_scenes = {}
 
 
@@ -304,7 +326,8 @@ def compile_job(config, *, worker=None, **options):
     key = (interpreter, lane)
     lock = _worker_locks[lane]
     scene_key = (
-        json.dumps([config, options["values"]], sort_keys=True) if shared_scene else None
+        json.dumps([config, options["values"], options.get("composition")], sort_keys=True)
+        if shared_scene else None
     )
     cached_only = options.get("cached_only", False)
     prepare_scene = options.get("prepare_scene", False)
@@ -393,15 +416,15 @@ def lyrics_path(config) -> Path:
     return Path(config["krc"])
 
 
-def _prepare_preview_scene(config, values):
+def _prepare_preview_scene(config, job):
     try:
-        compile_job(config, shared_scene="preview", prepare_scene=True, values=values)
+        compile_job(config, shared_scene="preview", prepare_scene=True, **job)
     except (OSError, ValueError):
         # Individual window requests still compile and report template errors.
         pass
 
 
-def _export_window(config, clip, values, output, *, prefetch):
+def _export_window(config, clip, values, output, *, prefetch, composition=None):
     job = {
         "values": values,
         "fps": clip["fps"],
@@ -410,11 +433,13 @@ def _export_window(config, clip, values, output, *, prefetch):
         "output": str(output),
         "resources_output": True,
     }
+    if composition is not None:
+        job["composition"] = composition
     if "segment_frames" in clip:
         result = compile_job(config, **job, shared_scene="preview", cached_only=True)
         if result.get("miss"):
             if prefetch:
-                Thread(target=_prepare_preview_scene, args=(config, values), daemon=True).start()
+                Thread(target=_prepare_preview_scene, args=(config, job), daemon=True).start()
             compile_job(config, **job, worker="lookahead" if prefetch else None)
     else:
         compile_job(config, **job)
@@ -429,6 +454,8 @@ def cache_values(proposal, values):
 def resource_path(proposal, values):
     clip = proposal["clip"]
     options = {"values": cache_values(proposal, values), "fps": clip["fps"]}
+    if "composition" in proposal:
+        options["composition"] = structural_composition(proposal, proposal["composition"])
     digest = hashlib.sha256(json.dumps(
         [_HOOK_CACHE_VERSION, proposal["config"], options, clip["start"], clip["duration"]],
         sort_keys=True,
@@ -447,6 +474,8 @@ def compiled(session, proposal, values, *, prefetch=False):
             _export_window(
                 config, clip, cache_values(proposal, values), staging,
                 prefetch=prefetch,
+                **({"composition": structural_composition(proposal, proposal["composition"])}
+                   if "composition" in proposal else {}),
             )
             try:
                 os.rename(staging, target)
@@ -456,16 +485,16 @@ def compiled(session, proposal, values, *, prefetch=False):
     return "assets/" + target.name
 
 
-def native_preview(session, proposal, hook, values):
+def native_preview(session, proposal, hook, values, *, thumbnail=False):
     import subprocess
 
     from .hook import repack
 
     clip = proposal["clip"]
-    if clip.get("fallback") and values == proposal.get("values", {}):
+    if not thumbnail and clip.get("fallback") and "composition" not in proposal and values == proposal.get("values", {}):
         return clip["fallback"]
     key = hashlib.sha256(
-        json.dumps(["song-clock", hook, values, clip], sort_keys=True).encode()
+        json.dumps(["candidate-card" if thumbnail else "song-clock", hook, values, clip, proposal.get("composition")], sort_keys=True).encode()
     ).hexdigest()
     target = session.root / "assets" / (key + ".webm")
     if not target.exists():
@@ -473,7 +502,8 @@ def native_preview(session, proposal, hook, values):
             directory = Path(tmp)
             source = directory / "scene.hook"
             repack(session.root / hook, source, {
-                name: values[name] for name in proposal.get("material_fields", ())
+                **{name: values[name] for name in proposal.get("material_fields", ())},
+                **material_values(proposal.get("composition")),
             })
             fps = clip["fps"]
             if clip.get("motion"):
@@ -492,6 +522,7 @@ def native_preview(session, proposal, hook, values):
                     str(session.root / clip["background"]),
                 ]
                 frames = "format=gbrp,loop=-1:1:0"
+            scale = ",scale=384:-2" if thumbnail else ""
             subprocess.run(
                 [
                     "ffmpeg",
@@ -505,7 +536,7 @@ def native_preview(session, proposal, hook, values):
                     *inputs,
                     "-an",
                     "-vf",
-                    f"{frames},setpts=N+{round(clip['start'] * fps)},libplacebo=w={clip['width']}:h={clip['height']}:custom_shader_path=scene.hook:format=yuv420p,setpts=PTS-STARTPTS",
+                    f"{frames},setpts=N+{round(clip['start'] * fps)},libplacebo=w={clip['width']}:h={clip['height']}:custom_shader_path=scene.hook:format=yuv420p,setpts=PTS-STARTPTS{scale}",
                     "-frames:v",
                     str(math.ceil(clip["fps"] * clip["duration"] - 1e-8)),
                     "-c:v",

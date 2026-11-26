@@ -65,9 +65,49 @@ python kara-previwer/scripts/rebuild_hook.py song/approved lyrics.hook
 
 模板可以用 kara-templater 的 `PaintInput` 将材质专用的颜色或数值绑定到同名字段。浏览器直接更新该参数，正式 Hook 在编译时使用完整选值。参与布局、覆盖、时序或跨字段校验的参数按预览范围重新编译。
 
-桌面预览支持 WebGL 2。无法使用它时，服务调用含 Vulkan/libplacebo 和 libvpx-vp9 的 FFmpeg 渲染所选片段，或使用 clip.fallback 中已提供的原生短片。画面右侧可调设计、填写自由意见，暂停后可逐帧、点选或圈出问题。历史意见提供原帧和新版同一时刻的对照。
+桌面预览支持 WebGL 2。无法使用它时，服务调用含 Vulkan/libplacebo 和 libvpx-vp9 的 FFmpeg 渲染所选片段，或使用 clip.fallback 中已提供的原生短片。编辑工作区可以调整设计和填写意见。暂停后可逐帧、点选或圈出问题。历史意见提供原帧和新版同一时刻的对照。
 
 `wait_for_events.py` 与 `pending_events.py` 返回的 `session_dir` 是本机绝对路径。把它与每条批注的 `image`、`annotated` 相连即可读取原图和标记图。多个完整候选可放在 manifest 的 `presets` 数组中，每项含 `title` 和对当前方案的 `values` 覆盖。比较旧版时仍可明确采用该版，后续整曲导出沿用当时的快照。
+
+## 发布可编辑的组合
+
+用同一份 `.nto`、对齐后的媒体和时间区间发布几套观感不同的候选。每份 manifest 可包含自己的 `composition`。让模板的 `build` 显式接收 `composition` 关键字参数，再通过 `compose_track()` 构建场景。编译器使用包含组件 API 的 kara-templater 环境。[可运行的组合模板](examples/composition_template.py)
+
+```json
+{
+  "composition_height": 720,
+  "composition_tracks": {"lead": "主唱", "harmony": "和声"},
+  "composition": {
+    "version": 1,
+    "groups": [{
+      "id": "front",
+      "label": "扫色与轮廓",
+      "track": "lead",
+      "components": [{
+        "id": "scan",
+        "component": "highlight-scanline",
+        "target": "track",
+        "values": {"scanline_width": 19},
+        "bindings": {"scanline_width": "scan_width"},
+        "controls": {"scanline_width": {"bounds": [3, 42], "label": "扫描线宽度"}}
+      }]
+    }]
+  }
+}
+```
+
+用 `effect_components(script_height=720)` 查看本例的内置组件 ID、作用对象和参数。省略参数时使用组件默认值。可在节点的 `fields` 中列出公开参数。同一候选内，特效组和组件节点的 ID 必须唯一。需要联动的实时参数可共用绑定名称，类型、默认值和控件设置须一致，且名称须避开模板注册的顶层参数。给已绑定的参数添加 `controls`，可以缩小范围，并设置步长、标签、分组和顺序。单位和默认范围由组件提供。字体、排版等参数变更会触发片段重建。
+
+`composition_tracks` 给模板轨道提供显示名称。通过 `build_lyric_scene()` 构建的候选只列出已发布时间范围内有歌词的声部。只有一个声部时，界面直接显示编辑控件。编辑当前未唱到的和声时，播放头留在原位，可点「跳到和声」定位。
+
+- 「预览」用大画面播放。多候选时可展开同一处歌词的短片，切换候选会保留主画面的播放位置。
+- 「编辑」铺满工作区，画面可在左右停靠、调宽或收起。两个布局共用播放器，整曲时间轴贴着画面移动。往返时会恢复编辑位置和同一候选的试放。属性和特效集中在编辑面板内，画面与播放控件一起停靠。
+- 在「编辑」的「属性」里改文字样式、唱前唱后配色和歌词排版。候选可共用设置，也可按实际声部覆盖。点「恢复继承值」会撤销该项覆盖。
+- 「特效库」分为「单选方案」和「可叠加」，搜索会查找两边的效果。每个声部中，入场、退场、走字等各自单选，可从库中选择或拖到「单选效果」更换同类设置。正文与注音可以分别设置支持这两个作用对象的效果。「叠加效果」支持重复添加动效和粒子，拖到两项之间插入，拖到某项中央替换。点已选项目可调参，也可先在本曲试放再加入草稿。
+
+每个候选单独保存草稿，切换与刷新后可恢复。打开页面期间可撤销编辑，也可用「恢复候选原样」重置当前草稿。发布新版本后，可从版本菜单打开旧候选和草稿。
+
+点击「以这套继续」会向 Agent 提交当时的候选、完整组合、参数值和当前时间。可在「本轮意见」里附说明。之后的编辑继续写入草稿。用 `pending_events.py` 或 `wait_for_events.py` 读取交接事件，再用 `claim_feedback.py` 标记处理中，最后用 `revise.py` 发布修订。修订沿用事件中的组合，也可在 patch 中提供完整的 `composition`。点击「采用这版」会确定正式交付的输入。快照中的 `accepted.json` 保留采用的选值和组合，`rebuild_hook.py` 用它及快照内保存的模板和打轴输入重建 Hook。
 
 ## 候选与差量修订
 
@@ -91,13 +131,13 @@ python kara-previwer/scripts/rebuild_hook.py song/approved lyrics.hook
 
 ## 播放与收藏
 
-单击画面或按空格播放、暂停。左右方向键或暂停画面上的滚轮逐帧定位，S 截帧，点选或拖框后可附上意见。窄屏可收起「设计与意见」。WebGL 与原生回退共用控制栏和音频时钟。
+单击画面或按空格播放、暂停。左右方向键或暂停画面上的滚轮逐帧定位，S 截帧，点选或拖框后可附上意见。有可编辑组合的会话可在「编辑」和「预览」间切换。编辑时可收起画面腾出空间，桌面停靠位置和宽度保存在当前浏览器。窄屏用紧凑画面。特效区同时展示已选效果与「特效库」，点已选项目即可进入参数页，返回时保留原分类和搜索词。WebGL 与原生回退共用控制栏和音频时钟。
 
-在「收藏」保存正在预览的完整模板和选值。下一首歌发布可编译提案后即可选「在本曲使用」。收藏中也能改名、更新或另存。[偏好与收藏存储](../docs/preferences.md)
+跨曲收藏适用于传统模板。可以在「收藏」保存当前模板和选值。下一首歌发布可编译候选后，即可将收藏「在本曲使用」。已有收藏可以改名、更新或另存。特效组合在本曲会话中保存草稿。[偏好与收藏存储](../docs/preferences.md)
 
 用收藏发起首轮时，读取 [preferences.py](scripts/preferences.py) 返回的 `templates`，把目标 ID 填到 manifest 的 `favorite`，同时提供本曲的 `clip`、`compiler.python` 和 `compiler.project`。模板脚本、资源和选值取自收藏。
 
-### 整曲时间线
+### 整曲时间轴
 
 从整曲零点开始时使用 `clip.start: 0`。将已对齐的整曲媒体提供给 `clip.audio`，填写其 `duration` 和预览 `fps`。对含原唱音轨的无字幕同画幅 MP4 设置 `motion: true`，让视频驱动播放器和画面，字幕由评审器叠加。静态画面使用 `background` 和音频。`entry_frame` 是片段内从零计数的起播帧，可定位在第一次有代表性的入唱前。交付时可从同一个采用快照按目标帧率重建。[验证编译环境](../docs/preferences.md#验证字幕编译环境)
 
@@ -105,6 +145,10 @@ python kara-previwer/scripts/rebuild_hook.py song/approved lyrics.hook
 
 若采用按需分段，例如 30 fps 时，`segment_frames: 240` 每段覆盖 8 秒，`entry_frame: 420` 打开在媒体第 14 秒。使用可重建的外部模板，保留背景图作为初始画面。网页按播放位置请求字幕、预取下一段，并以原曲时间记录截帧。导出采用版本时会重新编译整曲。旧的固定片段仍可使用原格式。
 
-整曲预览用同一份 Hook 定位任意时间。字号等数值滑块在拖动时同步显示数值，松手后先请求播放位置附近的字幕，再预取下一段。播放期间并行加载下一段。时间线跳到未缓存的位置时，服务按目标区间编译。WebGL 调色参数可以复用原有几何。
+整曲时间轴始终对应原曲媒体。字号等数值滑块在拖动时同步显示数值，松手后先请求播放位置附近的字幕，再预取下一段。播放期间并行加载下一段。时间轴跳到未缓存的位置时，服务按目标区间编译。WebGL 调色参数可以复用原有几何。
 
 基础模板用 `build_lyric_scene(document, ..., preview_interval=song.preview_interval)` 准备当前窗口。严格轮转布局会保留目标行、相邻交接和影响行高的歌词。需要按完整歌词表计算章节倒数时可读取 `document.lyric_sources`。需要跨区间访问其他歌词对象的模板可以构建整曲 Scene。
+
+## 更新内置特效卡片
+
+用 kara-templater 的文档预览构建生成素材后，运行 [stage_effect_previews.py](scripts/stage_effect_previews.py)，传入包含 `components.json` 和 `public/` 的构建目录。评审服务器直接提供这些预览资源。

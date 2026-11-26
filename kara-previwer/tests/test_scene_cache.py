@@ -1,10 +1,49 @@
 import unittest
+from dataclasses import dataclass
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from kara_previwer import compiler
 
 
 class SceneCacheTest(unittest.TestCase):
+    def test_inspect_tracks_uses_all_lyrics_in_the_clip_and_excludes_other_tracks(self):
+        @dataclass
+        class Song:
+            preview_interval: tuple[int, int] | None = None
+
+        def plan(track_id, start, end):
+            return SimpleNamespace(
+                track_id=track_id, placement=SimpleNamespace(display=SimpleNamespace(start=start, end=end)),
+                line=SimpleNamespace(layout=SimpleNamespace(body=SimpleNamespace(characters=[]), ruby=[])),
+                source=SimpleNamespace(lyrics=SimpleNamespace(units=[SimpleNamespace(segments=[
+                    SimpleNamespace(timing=SimpleNamespace(start=start + 0.5, end=end)),
+                ])])),
+            )
+
+        recipe = Mock(id="external", semantic=True)
+        recipe.resolve.side_effect = lambda values: values
+        recipe.build.return_value.track_settings = ()
+        recipe.build.return_value.plans = (
+            plan("lead", 3, 9), plan("lead", 5, 12), plan("harmony", 11, 15),
+        )
+        job = {
+            "script": "template", "template": "external", "project": "song.nto",
+            "inspect_tracks": True, "start": 5, "duration": 6,
+            "composition": {"version": 1, "groups": []}, "values": {},
+        }
+        with (
+            patch.object(compiler, "load_recipe", return_value=recipe),
+            patch.object(compiler, "load_project_song", return_value=Song()),
+        ):
+            info = compiler.run(job)
+            self.assertEqual(info["tracks"], ["lead"])
+            self.assertEqual(info["details"]["lead"]["start"], 5)
+            recipe.build.assert_called_once_with(Song((5, 11)), {}, composition=job["composition"])
+            all_tracks = compiler.run(dict(job, duration=8))
+            self.assertEqual(all_tracks["tracks"], ["harmony", "lead"])
+            self.assertEqual(all_tracks["details"]["harmony"]["start"], 11.5)
+
     def test_compiler_reuses_full_scene_across_windows_and_invalidates_inputs(self):
         recipe = Mock(id="external", semantic=True)
         recipe.resolve.side_effect = lambda values: values

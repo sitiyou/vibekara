@@ -17,7 +17,7 @@ def accepted_build(session):
     proposal = selected(state["revisions"][item["version"] - 1], item.get("direction", 0))
     if "config" not in proposal:
         raise ValueError("this precompiled review has no whole-song compiler")
-    return proposal, item
+    return ({**proposal, "composition": item["composition"]} if "composition" in item else proposal), item
 
 
 def snapshot(session, proposal, item, fps, destination):
@@ -33,6 +33,8 @@ def snapshot(session, proposal, item, fps, destination):
         "faces": proposal.get("faces", {}),
         "config": config.copy(),
     }
+    if "composition" in item:
+        manifest["composition"] = item["composition"]
     destination.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=destination.parent) as staging:
         root = Path(staging) / "snapshot"
@@ -77,7 +79,8 @@ def build_hook(config, source, values, fps: int, output: Path):
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=output.parent) as tmp:
         staged = Path(tmp).resolve() / output.name
-        result = compile_job(config, values=values, fps=fps, output=str(staged))
+        options = {"composition": source["composition"]} if "composition" in source else {}
+        result = compile_job(config, values=values, fps=fps, output=str(staged), **options)
         staged.replace(output)
     return result
 

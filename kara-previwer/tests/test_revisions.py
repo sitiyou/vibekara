@@ -4,11 +4,64 @@ import uuid
 from pathlib import Path
 from unittest.mock import patch
 
+from kara_previwer.composition import material_values, normalize, structural_composition
 from kara_previwer.proposals import check_fonts, decorate, revise, save_package
-from kara_previwer.store import Session
+from kara_previwer.store import Conflict, Session
 
 
 class RevisionTest(unittest.TestCase):
+    def test_composition_drafts_keep_handoff_immutable_across_independent_directions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            session = Session.create(Path(directory), "song")
+            session.publish(0, {})
+            initial = {"version": 1, "groups": []}
+            changed = {"version": 1, "groups": [{"id": "ink"}]}
+            self.assertEqual(session.save_draft(1, 0, 0, {}, initial), {"revision": 1})
+            self.assertEqual(session.save_draft(1, 0, 0, {}, initial), {"revision": 1})
+            with self.assertRaisesRegex(Conflict, "另一个窗口"):
+                session.save_draft(1, 0, 0, {}, changed)
+            token = str(uuid.uuid4())
+            session.submit({
+                "token": token, "version": 1, "direction": 0, "action": "continue",
+                "composition": initial, "values": {},
+            })
+            session.save_draft(1, 0, 1, {}, changed)
+            session.save_draft(1, 1, 0, {}, initial)
+            session.publish(1, {}, token)
+            drafts = Session(session.root).state()["drafts"]
+            self.assertEqual(drafts["1:0"]["composition"], changed)
+            self.assertEqual(drafts["1:1"]["composition"], initial)
+            self.assertNotIn("2:0", drafts)
+            continued = [event for event in session.events(0) if event["kind"] == "continue"]
+            self.assertEqual(len(continued), 1)
+            self.assertEqual(continued[0]["composition"], initial)
+
+    def test_composition_bound_values_do_not_change_the_preview_cache(self):
+        field = {"kind": "number", "bounds": [1, 40], "default": 8, "live": True,
+                 "label": "Width", "unit": "px", "step": 0.1}
+        proposal = {
+            "composition_tracks": {"lead": "Main voice"},
+            "component_schema": {"scan": {"targets": ["track"], "repeatable": False,
+                                          "slot": "highlight", "parameters": {"width": field}}},
+            "parameters": [],
+        }
+
+        def graph(width):
+            return {"version": 1, "groups": [{
+                "id": "band", "label": "Front", "track": "lead", "components": [{
+                    "id": "scanner", "component": "scan", "values": {"width": width},
+                    "bindings": {"width": "band_width"}, "controls": {"width": {"bounds": [10, 25]}},
+                }],
+            }]}
+
+        first = normalize(proposal, graph(15))
+        second = normalize(proposal, graph(24))
+        self.assertEqual(material_values(first), {"band_width": 15})
+        self.assertEqual(material_values(second), {"band_width": 24})
+        self.assertEqual(structural_composition(proposal, first), structural_composition(proposal, second))
+        with self.assertRaisesRegex(ValueError, "允许范围"):
+            normalize(proposal, graph(29))
+
     def test_delta_uses_submitted_direction_and_values(self):
         with tempfile.TemporaryDirectory() as directory:
             session = Session.create(Path(directory), "song")

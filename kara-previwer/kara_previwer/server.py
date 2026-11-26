@@ -12,6 +12,7 @@ import subprocess
 import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
+from functools import lru_cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Event, Lock, Thread
@@ -28,9 +29,68 @@ from .bundle import (
     segment_clip,
     validate_values,
 )
+from .composition import normalize, structural_composition
 from .preferences import Preferences
 from .proposals import check_fonts, decorate, reuse, save_package, selected
 from .store import Conflict, Session
+
+
+@lru_cache(maxsize=64)
+def composition_details(root, version, direction):
+    session = Session(root)
+    revisions = session.state()["revisions"]
+    if not 1 <= version <= len(revisions):
+        raise ValueError("unknown version")
+    proposal = selected(revisions[version - 1], direction)
+    declared = proposal.get("composition_tracks", {})
+    if not declared:
+        return {"tracks": {}}
+    clip = proposal["clip"]
+    result = compile_job(
+        local_config(session, proposal), worker="metadata", inspect_tracks=True,
+        start=clip["start"], duration=clip["duration"], values=proposal["values"],
+        composition=structural_composition(proposal, proposal["composition"]),
+    )
+    present = result["tracks"]
+    details = result.get("details", {})
+    return {"tracks": {
+        key: {"label": label, **details.get(key, {})}
+        for key, label in declared.items() if present is not None and key in present
+    }}
+
+
+@lru_cache(maxsize=32)
+def candidate_card(root, version, direction):
+    session = Session(root)
+    revisions = session.state()["revisions"]
+    if not 1 <= version <= len(revisions):
+        raise ValueError("unknown version")
+    proposal = selected(revisions[version - 1], direction)
+    clip = proposal["clip"]
+    window = segment_clip(clip, clip.get("entry_frame", 0))
+    entry = clip.get("entry_frame", 0) / clip["fps"]
+    offset = max(window.get("media_offset", 0), entry - 0.5)
+    end = window.get("media_offset", 0) + window["duration"]
+    offset = max(window.get("media_offset", 0), min(offset, end - 2))
+    offset = round(offset * clip["fps"]) / clip["fps"]
+    short = {
+        **window, "start": clip["start"] + offset, "media_offset": offset,
+        "duration": min(3, end - offset),
+    }
+    video = native_preview(session, {**proposal, "clip": short}, proposal["hook"], proposal["values"], thumbnail=True)
+    poster = (session.root / video).with_suffix(".jpg")
+    if not poster.is_file():
+        sample = max(0, min(entry - offset, short["duration"] - 1 / clip["fps"]))
+        with tempfile.TemporaryDirectory(dir=poster.parent) as folder:
+            still = Path(folder) / "poster.jpg"
+            subprocess.run(
+                ["ffmpeg", "-v", "error", "-nostdin", "-ss", str(sample), "-i", str(session.root / video),
+                 "-frames:v", "1", str(still)],
+                check=False, capture_output=True,
+            )
+            if still.is_file():
+                still.replace(poster)
+    return {"video": video, "poster": "assets/" + poster.name} if poster.is_file() else {"video": video}
 
 
 def preview_window(session, proposal, values, frame, *, whole=False, presented=None):
@@ -135,6 +195,18 @@ class Handler(BaseHTTPRequestHandler):
             ):
                 decorate(proposal, require_selected=False)
             check_fonts(proposal, values)
+            if "composition" in proposal:
+                published = proposal["composition"]
+                edited = normalize(proposal, data.get("composition", published))
+                proposal = {**proposal, "composition": edited, "published_composition": published}
+                if route == "draft":
+                    return self.respond(session.save_draft(
+                        version, data.get("direction", 0), data["revision"], values, edited,
+                    ))
+                if route in ("submit", "collection") and "composition" not in data:
+                    raise Conflict("需要提交当前预览的组件组合")
+            elif "composition" in data:
+                raise ValueError("当前方案没有可编辑的组件")
             # Agent only receives values actually rendered by this revision.
             clip = editing_clip(proposal, values)
             window = preview_window(
@@ -144,7 +216,10 @@ class Handler(BaseHTTPRequestHandler):
             )
             segment = {**proposal, "clip": window}
             initial = segment_clip(clip, clip.get("entry_frame", 0))
-            if values == proposal.get("values", {}) and window == initial:
+            unchanged_composition = structural_composition(proposal, proposal.get("composition")) == (
+                structural_composition(proposal, proposal.get("published_composition"))
+            )
+            if values == proposal.get("values", {}) and unchanged_composition and window == initial:
                 hook = proposal["hook"]
             elif "config" in proposal:
                 hook = compiled(
@@ -156,6 +231,8 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 raise ValueError("fixed candidate")
             if route == "collection":
+                if "composition" in proposal:
+                    raise ValueError("组合将随本次评审保存")
                 if data["hook"] != hook:
                     raise Conflict("preview is still compiling")
                 return self.respond(
@@ -177,6 +254,10 @@ class Handler(BaseHTTPRequestHandler):
                     raise Conflict("selected parameters have not been presented")
                 if {"kind", "id"} & data.keys():
                     raise ValueError("reserved event fields")
+                if "composition" in proposal:
+                    data["composition"] = proposal["composition"]
+                elif data["action"] == "continue":
+                    raise ValueError("当前方案没有可继续的组件组合")
                 for frame in data.get("frames", []):
                     revision = frame["version"]
                     if type(revision) != int or not 1 <= revision <= len(
@@ -186,6 +267,10 @@ class Handler(BaseHTTPRequestHandler):
                     design = selected(
                         state["revisions"][revision - 1], frame.get("direction", 0)
                     )
+                    if "composition" in design:
+                        design = {**design, "published_composition": design["composition"],
+                                  "composition": normalize(design, frame.get("composition"))}
+                        frame["composition"] = design["composition"]
                     clip = editing_clip(design, frame["values"])
                     validate_values(design, frame["values"])
                     if (frame["fps"], frame["start"], frame["clip"]) != (
@@ -204,7 +289,7 @@ class Handler(BaseHTTPRequestHandler):
                         raise ValueError(
                             "capture timestamp differs from its frame number"
                         )
-                    if "segment_frames" in clip:
+                    if "composition" in design or "segment_frames" in clip:
                         capture_window = preview_window(
                             session, design, frame["values"], frame["frame"], presented=frame["hook"]
                         )
@@ -229,6 +314,16 @@ class Handler(BaseHTTPRequestHandler):
                         )
                 return self.respond({"event": session.submit(data)})
             raise FileNotFoundError
+        if route in {"composition-tracks", "composition-details", "candidate-card"}:
+            query = parse_qs(url.query)
+            version = int(query.get("version", ["0"])[0])
+            direction = int(query.get("direction", ["0"])[0])
+            if route == "candidate-card":
+                return self.respond(candidate_card(session.root, version, direction))
+            details = composition_details(session.root, version, direction)
+            if route == "composition-tracks":
+                return self.respond({key: track["label"] for key, track in details["tracks"].items()})
+            return self.respond(details)
         if route == "state":
             state = session.state()
             if state["revisions"]:
@@ -251,7 +346,7 @@ class Handler(BaseHTTPRequestHandler):
                 [
                     event
                     for event in session.events(0)
-                    if event["kind"] in ("feedback", "accept")
+                    if event["kind"] in ("feedback", "continue", "accept")
                 ]
             )
         if route == "events":
@@ -278,6 +373,8 @@ class Handler(BaseHTTPRequestHandler):
             route,
         ):
             path = session.root / route
+        elif re.fullmatch(r"effect-previews/[a-z][a-z0-9-]*\.(?:jpg|mp4)", route):
+            path = Path(__file__).parent / route
         elif not route or re.fullmatch(r"ui/[\w.-]+", route):
             path = Path(__file__).with_name("web") / (route or "index.html")
         else:

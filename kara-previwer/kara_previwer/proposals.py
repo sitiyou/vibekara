@@ -6,9 +6,11 @@ import subprocess
 from pathlib import Path
 
 from .bundle import compiled, prepare, segment_clip, validate_values
+from .composition import normalize
 
 CATALOG = {
     "directions": "manifest paths in alternatives, same clip and clock",
+    "composition": "version 1; ordered groups of editable components on declared tracks",
     "presets": "title, description, values",
     "focus": "parameter names emphasized this round",
     "groups": "mapping from display title to parameter names",
@@ -111,6 +113,20 @@ def media_clock(clip):
     return {k: v for k, v in clip.items() if k != "fallback"}
 
 
+def verify_direction(session, reference, option):
+    if media_clock(option["clip"]) != media_clock(reference["clip"]):
+        raise ValueError("directions must share the reviewed clip")
+    if "composition" in reference or "composition" in option:
+        from .bundle import local_config
+
+        timing = {"project", "song_input", "krc", "midi", "offset_ms", "harmony_tracks", "wavetone", "track_style"}
+        if any("config" not in candidate for candidate in (reference, option)):
+            raise ValueError("editable directions require the same saved timing input")
+        base, alternative = (local_config(session, candidate) for candidate in (reference, option))
+        if any(base.get(field) != alternative.get(field) for field in timing):
+            raise ValueError("editable directions require the same saved timing input")
+
+
 def directions(session, manifest, inherited):
     primary = prepare(session, manifest, inherited)
     if "config" in primary and not primary.get("sample"):
@@ -129,8 +145,7 @@ def directions(session, manifest, inherited):
     for path in alternatives:
         option = decorate(prepare(session, manifest.parent / path))
         option.setdefault("sample", primary.get("sample", ""))
-        if media_clock(option["clip"]) != media_clock(primary["clip"]):
-            raise ValueError("directions must share media and clip timing")
+        verify_direction(session, primary, option)
         primary["directions"].append(option)
     return primary
 
@@ -148,7 +163,7 @@ def revise(session, base, token, patch, directory=Path(".")):
         (
             e
             for e in session.events(0)
-            if e.get("token") == token and e["kind"] == "feedback"
+            if e.get("token") == token and e["kind"] in {"feedback", "continue"}
         ),
         None,
     )
@@ -164,6 +179,7 @@ def revise(session, base, token, patch, directory=Path(".")):
         "presets",
         "alternatives",
         "manifest",
+        "composition",
     }:
         raise ValueError("unknown revision field")
     patch = dict(patch)
@@ -187,6 +203,11 @@ def revise(session, base, token, patch, directory=Path(".")):
     validate_values(option, values)
     result = {k: v for k, v in option.items() if k not in {"directions", "version"}}
     result.update(patch, values=values)
+    if "composition" in result:
+        inherited_graph = event.get("composition", result["composition"])
+        result["composition"] = normalize(result, patch.get("composition", inherited_graph))
+    elif event.get("composition") is not None:
+        raise ValueError("继续方向需要支持组件组合的模板")
     if values != option["values"]:
         result["clip"] = media_clock(option["clip"])
     result["not_inherited"] = dropped
@@ -194,8 +215,7 @@ def revise(session, base, token, patch, directory=Path(".")):
         result["directions"] = []
         for path in alternatives:
             candidate = directions(session, directory / path, {})
-            if media_clock(candidate["clip"]) != media_clock(option["clip"]):
-                raise ValueError("directions must share the reviewed clip")
+            verify_direction(session, option, candidate)
             result["directions"].append(candidate)
     decorate(result)
     for preset in result.get("presets", []):
@@ -207,7 +227,7 @@ def revise(session, base, token, patch, directory=Path(".")):
             if "segment_frames" in clip
             else clip
         )
-        result["hook"] = compiled(session, {**option, "clip": entry}, values)
+        result["hook"] = compiled(session, {**result, "clip": entry}, values)
     return session.publish(base, result, token)
 
 

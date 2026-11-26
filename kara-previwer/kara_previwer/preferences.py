@@ -207,6 +207,8 @@ class Preferences:
             directory = None
             try:
                 if action in {"add", "update"}:
+                    if package is None:
+                        raise ValueError("保存模板需要可重建的模板输入")
                     # An update switches the index to a complete immutable package.
                     if action == "add":
                         key = uuid.uuid4().hex

@@ -50,8 +50,43 @@ class Session:
             (kind, json.dumps(payload, ensure_ascii=False)),
         ).lastrowid
 
+    @staticmethod
+    def ensure_drafts(db):
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS drafts (
+                version INTEGER NOT NULL, direction INTEGER NOT NULL,
+                revision INTEGER NOT NULL, payload TEXT NOT NULL,
+                PRIMARY KEY(version,direction)
+            )
+        """)
+
+    def save_draft(self, version, direction, revision, values, composition):
+        if type(revision) is not int or revision < 0:
+            raise ValueError("无效的草稿版本")
+        payload = {"values": values, "composition": composition}
+        encoded = json.dumps(payload, sort_keys=True, ensure_ascii=False)
+        with self.transaction() as db:
+            self.ensure_drafts(db)
+            if db.execute("SELECT accepted FROM session").fetchone()[0]:
+                raise Conflict("这次评审已采用")
+            row = db.execute(
+                "SELECT revision,payload FROM drafts WHERE version=? AND direction=?",
+                (version, direction),
+            ).fetchone()
+            current = row["revision"] if row else 0
+            if current != revision:
+                if row and current == revision + 1 and row["payload"] == encoded:
+                    return {"revision": current}
+                raise Conflict("草稿在另一个窗口更新，请刷新后继续")
+            db.execute(
+                "INSERT OR REPLACE INTO drafts VALUES(?,?,?,?)",
+                (version, direction, current + 1, encoded),
+            )
+            return {"revision": current + 1}
+
     def state(self):
         with self.transaction() as db:
+            self.ensure_drafts(db)
             row = db.execute("SELECT * FROM session").fetchone()
             revisions = [
                 json.loads(r[0])
@@ -76,6 +111,12 @@ class Session:
                 "version": row["version"],
                 "accepted": row["accepted"],
                 "revisions": revisions,
+                "drafts": {
+                    f"{draft['version']}:{draft['direction']}": {
+                        **json.loads(draft["payload"]), "revision": draft["revision"],
+                    }
+                    for draft in db.execute("SELECT * FROM drafts")
+                },
                 "cursor": db.execute(
                     "SELECT coalesce(max(id),0) FROM events"
                 ).fetchone()[0],
@@ -105,7 +146,7 @@ class Session:
             row = db.execute(
                 "SELECT payload FROM submissions WHERE token=?", (token,)
             ).fetchone()
-            if not row or json.loads(row[0])["action"] != "feedback":
+            if not row or json.loads(row[0])["action"] not in ("feedback", "continue"):
                 raise ValueError("unknown feedback")
             for event in db.execute(
                 "SELECT id,payload FROM events WHERE kind='working'"
@@ -128,7 +169,7 @@ class Session:
                 item = db.execute(
                     "SELECT payload FROM submissions WHERE token=?", (feedback,)
                 ).fetchone()
-                if not item or json.loads(item[0])["action"] != "feedback":
+                if not item or json.loads(item[0])["action"] not in ("feedback", "continue"):
                     raise Conflict("unknown feedback")
                 submitted = json.loads(item[0])
                 if submitted.get("base", submitted["version"]) != base:
@@ -148,11 +189,14 @@ class Session:
             return proposal
 
     def submit(self, payload):
+        submitted_version = payload.get("version")
+        if type(submitted_version) is not int:
+            raise ValueError("invalid submission version")
         token = str(uuid.UUID(payload["token"]))
         payload = dict(payload, token=token)
         encoded = json.dumps(payload, sort_keys=True, ensure_ascii=False)
         action = payload["action"]
-        if action not in ("feedback", "accept"):
+        if action not in ("feedback", "continue", "accept"):
             raise ValueError("unknown action")
         with self.transaction() as db:
             prior = db.execute(
@@ -167,8 +211,8 @@ class Session:
             ).fetchone()
             if (
                 accepted
-                or version != payload.get("base", payload["version"])
-                or not 1 <= payload["version"] <= version
+                or version != payload.get("base", submitted_version)
+                or not 1 <= submitted_version <= version
             ):
                 raise Conflict("review version changed")
             event = self.emit(db, action, payload)
