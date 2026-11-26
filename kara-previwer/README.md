@@ -149,6 +149,8 @@ python kara-previwer/scripts/rebuild_hook.py song/approved lyrics.hook
 
 基础模板用 `build_lyric_scene(document, ..., preview_interval=song.preview_interval)` 准备当前窗口。严格轮转布局会保留目标行、相邻交接和影响行高的歌词。需要按完整歌词表计算章节倒数时可读取 `document.lyric_sources`。需要跨区间访问其他歌词对象的模板可以构建整曲 Scene。
 
-## 更新内置特效卡片
+## 读取内置特效卡片
 
-用 kara-templater 的文档预览构建生成素材后，运行 [stage_effect_previews.py](scripts/stage_effect_previews.py)，传入包含 `components.json` 和 `public/` 的构建目录。评审服务器直接提供这些预览资源。
+发布可编辑方案时，评审器从 `compiler.python` 对应的 kara-templater 读取组件目录和已生成的卡片，将封面和短片保存到会话。各版本的卡片可在离线状态下回看。
+
+开发时，在 kara-templater 仓库运行 `uv run --no-sync python -m tools.build_component_library`。可传 `--card CARD_ID` 只生成指定卡片。发布新方案时，将环境变量 `KARA_TEMPLATER_COMPONENT_PREVIEWS` 指向上游的 `build/component-catalog/previews/`。已有会话保留各版发布时的卡片。

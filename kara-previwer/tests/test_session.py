@@ -9,7 +9,7 @@ import wave
 from array import array
 from pathlib import Path
 
-from kara_previwer.bundle import prepare
+from kara_previwer.bundle import prepare, store_component_previews
 from kara_previwer.hook import repack
 from kara_previwer.store import Conflict, Session
 
@@ -20,6 +20,34 @@ class ReviewTest(unittest.TestCase):
         self.addCleanup(temp.cleanup)
         self.root = Path(temp.name)
         self.session = Session.create(self.root, "Song")
+
+    def test_published_card_files_are_deduplicated_and_independent_of_compiler_output(self):
+        import hashlib
+
+        assets = self.session.root / "assets"
+        assets.mkdir(exist_ok=True)
+
+        def store_file(path):
+            data = path.read_bytes()
+            filename = hashlib.sha256(data).hexdigest() + path.suffix
+            (assets / filename).write_bytes(data)
+            return f"assets/{filename}"
+
+        with tempfile.TemporaryDirectory() as staging:
+            directory = Path(staging)
+            (directory / "0.jpg").write_bytes(b"poster")
+            (directory / "1.mp4").write_bytes(b"clip")
+            media = {"poster": "0.jpg", "src": "1.mp4", "startAt": 0.5}
+            previews = store_component_previews({"entry": media, "echo": media}, directory, store_file)
+            self.session.publish(0, {"component_previews": previews})
+            with self.assertRaisesRegex(ValueError, "invalid compiler preview resource"):
+                store_component_previews({"entry": {"poster": "../0.jpg"}}, directory, store_file)
+
+        previews = self.session.state()["revisions"][0]["component_previews"]
+        self.assertEqual(previews["entry"], previews["echo"])
+        self.assertEqual(previews["echo"]["startAt"], 0.5)
+        self.assertEqual((self.session.root / previews["echo"]["poster"]).read_bytes(), b"poster")
+        self.assertEqual((self.session.root / previews["echo"]["src"]).read_bytes(), b"clip")
 
     def test_retry_reconnect_and_return_to_earlier_design(self):
         first = {"values": {"size": 100}}

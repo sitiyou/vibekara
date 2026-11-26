@@ -50,3 +50,10 @@ class SegmentTest(unittest.TestCase):
         self.assertNotEqual(resource_path(proposal, geometry), resource_path(proposal, start))
         self.assertEqual(editing_clip(proposal, appearance), clip)
         self.assertEqual(editing_clip(proposal, geometry)["segment_frames"], 60)
+
+    def test_new_compiler_build_changes_the_cached_hook_but_card_media_does_not(self):
+        clip = {"start": 0, "duration": 2, "fps": 30}
+        proposal = {"clip": clip, "config": "recipe", "values": {}, "compiler_stamp": "original"}
+        key = resource_path(proposal, {})
+        self.assertNotEqual(key, resource_path(dict(proposal, compiler_stamp="changed"), {}))
+        self.assertEqual(key, resource_path(dict(proposal, component_previews={"echo": "new"}), {}))

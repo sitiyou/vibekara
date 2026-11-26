@@ -1,6 +1,8 @@
 """Trusted local adapter. Run with the interpreter containing the producer's packages."""
 
+import hashlib
 import json
+import shutil
 import sys
 import traceback
 from contextlib import redirect_stdout
@@ -72,11 +74,68 @@ def build_scene(recipe, song, values, composition):
     return recipe.build(song, values, composition=composition)
 
 
+def compiler_stamp(package_file):
+    root = Path(package_file).parent
+    digest = hashlib.sha256()
+    for path in sorted(root.rglob("*")):
+        if path.suffix in {".py", ".so", ".pyd", ".dll"} or path.name in {
+            "_kara_wgsl", "_kara_wgsl.exe",
+        }:
+            digest.update(path.relative_to(root).as_posix().encode())
+            with path.open("rb") as stream:
+                digest.update(hashlib.file_digest(stream, "sha256").digest())
+    return digest.hexdigest()
+
+
+def describe_components(job):
+    import kara_templater
+
+    height = job["composition_height"]
+    if not hasattr(kara_templater, "component_catalog"):
+        return {
+            "component_schema": {
+                name: asdict(component)
+                for name, component in kara_templater.effect_components(script_height=height).items()
+            },
+        }
+    directory = job.get("component_preview_directory")
+    catalog = kara_templater.component_catalog(script_height=height, preview_directory=directory)
+    previews = {}
+    copied = {}
+    output = Path(job["component_preview_output"])
+    for kind, card_id in catalog["preferred_cards"].items():
+        card = catalog["cards"][card_id]
+        media = {}
+        for field, source_field in (("poster", "poster"), ("src", "video")):
+            name = card.get(source_field)
+            if not name:
+                continue
+            if name not in copied:
+                resource = kara_templater.component_preview_resource(name, preview_directory=directory)
+                if not resource.is_file():
+                    continue
+                filename = str(len(copied)) + Path(name).suffix
+                with resource.open("rb") as source, (output / filename).open("wb") as destination:
+                    shutil.copyfileobj(source, destination)
+                copied[name] = filename
+            media[field] = copied[name]
+        if "src" in media and "start_at" in card:
+            media["startAt"] = card["start_at"]
+        if media:
+            previews[kind] = media
+    return {
+        "component_schema": catalog["components"],
+        "component_previews": previews,
+        "compiler_stamp": compiler_stamp(kara_templater.__file__),
+    }
+
+
 def shared_scene(job, recipe, song, values, timing):
     global _scene_key, _scene
     key = (
         job["script"],
         job["template"],
+        job.get("compiler_stamp"),
         timing,
         tuple(sorted(values.items())),
         json.dumps(job.get("composition"), sort_keys=True),
@@ -195,15 +254,10 @@ def run(job):
             ),
         }
         if job.get("describe_composition"):
-            from kara_templater import effect_components
-
             parameter = signature(recipe.build).parameters.get("composition")
             if parameter is None or parameter.kind not in (parameter.KEYWORD_ONLY, parameter.POSITIONAL_OR_KEYWORD):
                 raise ValueError("组合模板的构建函数需要显式 composition 参数")
-            schema["component_schema"] = {
-                name: asdict(component)
-                for name, component in effect_components(script_height=job["composition_height"]).items()
-            }
+            schema.update(describe_components(job))
         return schema
     timing = timing_key(job)
     if "project" in job:

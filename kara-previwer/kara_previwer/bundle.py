@@ -123,6 +123,23 @@ def segment_clip(clip, frame):
     }
 
 
+def store_component_previews(previews, directory, store_file):
+    stored = {}
+    for component, media in previews.items():
+        card = {}
+        for field, suffix in (("poster", ".jpg"), ("src", ".mp4")):
+            filename = media.get(field)
+            if filename is not None:
+                if not re.fullmatch(r"[0-9]+" + re.escape(suffix), filename):
+                    raise ValueError("invalid compiler preview resource name")
+                card[field] = store_file(directory / filename)
+        if "src" in card and "startAt" in media:
+            card["startAt"] = media["startAt"]
+        if card:
+            stored[component] = card
+    return stored
+
+
 def prepare(session, manifest, inherited=None):
     proposal = json.loads(manifest.read_text())
     if "favorite" in proposal:
@@ -145,7 +162,10 @@ def prepare(session, manifest, inherited=None):
         )
     if not proposal.get("template") or proposal["template"] == "default":
         raise ValueError("review requires an external template")
-    if {"config", "material_fields", "material_fields_allowed", "component_schema", "published_composition"} & proposal.keys():
+    if {
+        "config", "material_fields", "material_fields_allowed", "component_schema",
+        "component_previews", "compiler_stamp", "published_composition",
+    } & proposal.keys():
         raise ValueError("preview bindings and config are generated from the selected template")
     editable = "composition" in proposal
     if editable:
@@ -275,15 +295,25 @@ def prepare(session, manifest, inherited=None):
         os.replace(f.name, configs / key)
         proposal["config"] = key
         local = resolve_config(session.root, config)
-        describe = {"describe": True}
         if editable:
-            describe.update(describe_composition=True, composition_height=height)
-        schema = compile_job(local, **describe)
+            with tempfile.TemporaryDirectory(dir=directory) as temporary:
+                preview_dir = os.getenv("KARA_TEMPLATER_COMPONENT_PREVIEWS")
+                schema = compile_job(
+                    local, describe=True, describe_composition=True, composition_height=height,
+                    component_preview_output=temporary,
+                    component_preview_directory=str(Path(preview_dir).resolve()) if preview_dir else None,
+                )
+                if "component_previews" in schema:
+                    schema["component_previews"] = store_component_previews(
+                        schema["component_previews"], Path(temporary), store_file,
+                    )
+        else:
+            schema = compile_job(local, describe=True)
         choices = {k: v for k, v in (inherited or {}).items() if k in schema["values"]}
         choices.update(proposal.get("values", {}))
-        proposal.update(
-            compile_job(local, **describe, values=choices) if choices else schema
-        )
+        if choices:
+            schema.update(compile_job(local, describe=True, values=choices))
+        proposal.update(schema)
         if editable:
             proposal["composition"] = normalize(proposal, proposal["composition"])
         if proposal.pop("material_fields_allowed", False):
@@ -456,6 +486,8 @@ def resource_path(proposal, values):
     options = {"values": cache_values(proposal, values), "fps": clip["fps"]}
     if "composition" in proposal:
         options["composition"] = structural_composition(proposal, proposal["composition"])
+    if "compiler_stamp" in proposal:
+        options["compiler_stamp"] = proposal["compiler_stamp"]
     digest = hashlib.sha256(json.dumps(
         [_HOOK_CACHE_VERSION, proposal["config"], options, clip["start"], clip["duration"]],
         sort_keys=True,
@@ -466,6 +498,8 @@ def resource_path(proposal, values):
 def compiled(session, proposal, values, *, prefetch=False):
     """Resolve relative immutable source paths only in the trusted service."""
     config = local_config(session, proposal)
+    if "compiler_stamp" in proposal:
+        config["compiler_stamp"] = proposal["compiler_stamp"]
     clip = proposal["clip"]
     target = session.root / resource_path(proposal, values)
     if not target.exists():

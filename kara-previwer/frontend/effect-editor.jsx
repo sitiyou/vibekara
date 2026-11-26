@@ -16,7 +16,6 @@ import { componentValue, makeNode } from "./composition";
 import { Parameter, targets, title } from "./composition-fields";
 import { propertyKinds } from "./properties";
 import { MotionPreview } from "./preview-cards";
-import previews from "./effect-preview-index.json";
 import { occupants, placeEffect } from "./effect-placement";
 import "./effect-editor.css";
 
@@ -361,6 +360,7 @@ function Inspector({ node, spec, sample, disabled, change, retarget, heading }) 
 export function EffectsPanel({
   graph,
   schema,
+  previews,
   tracks,
   track,
   selectedId,

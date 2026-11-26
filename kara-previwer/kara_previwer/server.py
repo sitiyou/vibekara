@@ -123,6 +123,11 @@ def snapshot(session, data, width, height):
     return "assets/" + target.name
 
 
+@lru_cache(maxsize=1)
+def legacy_effect_previews():
+    return json.loads(Path(__file__).with_name("legacy-effect-previews.json").read_text(encoding="utf-8"))
+
+
 class ReviewServer(ThreadingHTTPServer):
     def __init__(self, root: Path, port: int, executor: ThreadPoolExecutor):
         super().__init__(("127.0.0.1", port), Handler)
@@ -338,6 +343,8 @@ class Handler(BaseHTTPRequestHandler):
             for revision in state["revisions"]:
                 for option in [revision, *revision.get("directions", [])]:
                     decorate(option, require_selected=False)
+                    if "component_schema" in option and "component_previews" not in option:
+                        option["component_previews"] = legacy_effect_previews()
             return self.respond(state)
         if route == "preferences":
             return self.respond(Preferences().read())

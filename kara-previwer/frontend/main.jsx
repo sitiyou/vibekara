@@ -1701,6 +1701,7 @@ function App() {
                   <EffectsPanel
                     graph={composition}
                     schema={proposal.component_schema}
+                    previews={proposal.component_previews ?? {}}
                     tracks={tracks}
                     track={activeEffectTrack}
                     selectedId={selectedEffectId}
