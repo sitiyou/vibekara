@@ -53,7 +53,7 @@
 
 ### 测量偏移
 
-使用已安装的 `audio-offset-finder` 和 FFmpeg。缺少前者时运行 `pip install audio-offset-finder`。[软件包](https://pypi.org/project/audio-offset-finder/) · [上游用法](https://github.com/bbc/audio-offset-finder#basic-usage)
+使用已安装的 `audio-offset-finder` 和 FFmpeg。缺少工具时按[安装说明](../INSTALL.md#制作时需要的工具)补齐。如果找不到 uv 已安装的命令，用 `uv tool dir --bin` 查看可执行文件目录，并用完整路径调用。[上游用法](https://github.com/bbc/audio-offset-finder#basic-usage)
 
 ```sh
 audio-offset-finder --find-offset-of target.wav --within reference.wav --json

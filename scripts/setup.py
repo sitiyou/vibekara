@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import platform
 import re
 import shutil
 import subprocess
@@ -57,11 +58,26 @@ def namioto_backend() -> str:
     return "cpu"
 
 
+def namioto_wheel_url(version: str) -> str:
+    if platform.machine().lower() not in {"amd64", "x86_64"}:
+        raise ValueError("Namioto release wheels require an x86-64 machine.")
+    if sys.platform == "win32":
+        wheel_platform = "win_amd64"
+    elif sys.platform.startswith("linux"):
+        wheel_platform = "manylinux_2_28_x86_64"
+    else:
+        raise ValueError("Namioto release wheels are available for Linux and Windows.")
+
+    filename = f"namioto-{version}-cp314-cp314-{wheel_platform}.whl"
+    return f"https://github.com/sitiyou/namioto/releases/download/v{version}/{filename}"
+
+
 def install(uv: str, namioto: Path, templater: Path, *, backend: str, build_templater: bool) -> Path:
+    project = tomllib.loads((namioto / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    wheel = namioto_wheel_url(project["version"])
     venv = vibekara_home() / ".venv"
     python = venv / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
     if not python.is_file():
-        project = tomllib.loads((namioto / "pyproject.toml").read_text(encoding="utf-8")).get("project", {})
         subprocess.run(
             [uv, "venv", "--no-project", "--python", project["requires-python"], venv],
             check=True,
@@ -70,13 +86,13 @@ def install(uv: str, namioto: Path, templater: Path, *, backend: str, build_temp
     command = [
         uv, "pip", "install", "--python", python,
         "--reinstall-package", "kara-templater",
-        "--reinstall-package", "namioto", f"{namioto}[{backend}]",
+        "--reinstall-package", "namioto", f"namioto[{backend}] @ {wheel}",
     ]
     if build_templater:
         command.append(templater)
     else:
-        project = tomllib.loads((templater / "pyproject.toml").read_text(encoding="utf-8")).get("project", {})
-        command.extend(("--only-binary", "kara-templater", f"kara-templater=={project['version']}"))
+        project = tomllib.loads((templater / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+        command.extend(("--only-binary", ":all:", f"kara-templater=={project['version']}"))
 
     runtimes = {
         "cpu": {"onnxruntime"},

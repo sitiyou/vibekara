@@ -956,7 +956,7 @@ svg {
 
 .screen #clock-controller,
 .screen canvas,
-.screen > video,
+.screen video,
 .screen .original {
   position: absolute;
   inset: 0;

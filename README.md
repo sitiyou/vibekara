@@ -1,35 +1,37 @@
-# vibekara
+<div align="center">
 
-vibekara 是给 AI agent 制作卡拉 OK 用的 skill。把歌曲和手头的素材交给 agent，它会核对录音版本、给歌词打轴，并提供浏览器评审。你可以边听边调整字幕，也可以直接截取需要修改的那一帧。
+<img src="docs/assets/vibekara-logo.png" alt="vibekara logo" width="420" />
 
-整曲默认交付 **可编辑工程、字幕 hook 和 1080p60 原唱导练视频**。有同版伴奏时，还可以导出共用同一条字幕画面的伴奏版。
+### 交给 AI Agent，端到端制作卡拉 OK 特效字幕视频
 
-[开始制作](#开始制作) · [安装](#安装) · [For AI agents](#for-ai-agents)
+从素材对齐、多声部打轴、浏览器调参评审到 1080p60 原唱 / 伴奏成片导出。
 
-## 开始制作
+[核心功能](#核心功能) · [快速开始](#快速开始) · [工作流与组件](#工作流与组件) · [For AI Agents](#for-ai-agents)
 
-在启用了 vibekara 的 agent 中，最少给 **一项能找到目标录音的线索**，例如歌曲目录、原唱音频、具体的歌曲或 MV 链接，或者歌名、歌手和版本。再说明要整曲视频、只要打轴工程，还是只要 Hook。已有的歌词、封面、伴奏和打轴文件可以一并提供，agent 按本次交付补齐缺项。[输入格式和缺项处理](docs/media.md#可以提供什么)
+</div>
 
-> 用这个 MV 做一版原唱卡拉 OK。歌词帮我找，画面就用 MV。
+---
 
-| 阶段 | 你会得到什么 |
-| --- | --- |
-| **1. 准备素材** | 确认使用哪一版录音，配上对应的歌词、MV 或专辑封面。MV 和专辑前奏长度不同时，先校准两者的起点。 |
-| **2. 给歌词打轴** | 用参考录音和歌词在 Namioto 打轴，或打开已有 `.nto` 续修。保存后的 `.nto` 供评审和导出直接读取。 |
-| **3. 审核字幕样式** | 首次制作或调整样式时，agent 发来 kara-previwer 链接。方向开放时，首轮比较几套差异明显的完整设计。选定方向后，再调整入场、唱读提示、离场等细节。需要直接导出时可以明确说明。 |
-| **4. 导出整曲** | 使用已采用的方案重建整曲 Hook、合成视频，并检查入唱、换行和片尾。原唱版与伴奏版共用画面。 |
+## 核心功能
 
-评审时可以暂停、逐帧查看，再截帧留言，例如「这一拍猫爪应该已经消失了」。agent 会收到带时间点和当前选值的反馈，更新方案供你复看。点击「采用这版」会保存该次提交的参数，供正式导出使用。喜欢的模板也可以收藏到下一首歌。[评审器使用说明](kara-previwer/README.md) · [偏好与模板收藏](docs/preferences.md)
+- **自动对齐音画**：核对原唱、伴奏、歌词与画面是否属于同一录音版本并校准起点；缺伴奏或需人声轨时自动分离。
+- **多声部精准打轴**：支持主唱、和声、多角色分轨与日语汉字注音，输出可随时手工微调的工程文件。
+- **浏览器实时评审**：边听原曲边逐帧核对，实时调整字号、字体、配色与动效，或直接截帧框选画面问题交给 Agent 修订；拿不准风格时可选开启多方案比选与特效组件库自助组合。
+- **GPU 高速渲染交付**：支持渐变扫色、导唱符、粒子与自定义着色器特效，预览与成片所见即所得，一键输出 1080p60 原唱与伴奏视频。
 
-[制作第一版评审](docs/first-review.md)介绍如何从曲目出发选择能直接比较的设计方向，以及发布前如何核对实际画面。
+<div align="center">
+  <img src="docs/assets/previewer-ui.jpg" alt="浏览器实时评审界面" width="88%" />
+  <br />
+  <sub>浏览器实时评审界面：边听边调字号、字体与配色，支持逐帧定位与截帧反馈</sub>
+</div>
 
-继续旧工程时，把同一个歌曲目录交给 agent 即可。`production.md` 记录所用录音、打轴文件、评审进度和交付位置。
+---
 
-本机媒体库和账号惯例可写入[本地偏好](docs/preferences.md)。[媒体准备](docs/media.md)和[投稿指南](docs/publishing.md)按需使用。
+## 快速开始
 
-## 安装
+### 1. 安装
 
-把下面这段话复制给你的 AI agent，或者按 [INSTALL.md](INSTALL.md) 手动安装。
+先备好 Git、[uv](https://docs.astral.sh/uv/getting-started/installation/) 和 FFmpeg，然后把下面这段话直接发给你的 AI Agent（手动步骤与平台细节见 [INSTALL.md](INSTALL.md)）：
 
 ```text
 请从 https://github.com/sitiyou/vibekara 安装 vibekara。先阅读仓库的 INSTALL.md，
@@ -38,15 +40,45 @@ vibekara 是给 AI agent 制作卡拉 OK 用的 skill。把歌曲和手头的素
 安装完成后，告诉我 checkout、Python 解释器、pymss 和 Skill 的位置。
 ```
 
-## 从 Python 导入 Namioto 工程
+### 2. 开始制作
 
-在 vibekara 仓库根目录用 [安装教程](INSTALL.md) 输出的解释器运行[渲染脚本](skills/vibekara-export/assets/render_hook.py)。
+只要给 Agent **一条能找到目标录音的线索**（本地音频、歌曲目录、MV 链接或歌名/版本），说明想要的输出即可（详见 [输入格式](docs/media.md#可以提供什么)）：
+
+- **从零制作**：`用这个 MV 做一版原唱卡拉 OK，歌词帮我找，画面就用 MV，再出一版 off vocal。`
+- **多声部 / 定制特效**：`音频和伴奏在这里，出双语 on/off vocal；打轴分好不同角色和声轨，特效按画面风格做细节设计。`
+- **续修旧工程**：`打开 ./my-song/ 目录，把副歌和声补齐后给我浏览器预览。`
+
+---
+
+## 工作流与组件
+
+```mermaid
+flowchart LR
+    A["1. 素材与对齐"] --> B["2. 歌词打轴"]
+    B --> C["3. 浏览器评审"]
+    C -- "调参 / 截帧反馈" --> C
+    C -- "采用" --> D["4. 导出成片"]
+```
+
+| 阶段 | 做什么 | 工具 / 文档 |
+| --- | --- | --- |
+| **1. 素材与对齐** | 核对录音版本、校准音画起点、按需分离人声与伴奏 | `PyMSS` · [媒体准备](docs/media.md) |
+| **2. 歌词打轴** | 节拍对齐、读音与分轨标注，保存可编辑工程（`.nto`） | [Namioto](https://github.com/sitiyou/namioto) |
+| **3. 样式评审** | 浏览器实时试放与调参，支持可选多方向比选与组件库编辑 | [kara-previwer](kara-previwer/README.md) · [首轮评审](docs/first-review.md) |
+| **4. 导出成片** | 编译独立着色器并渲染 1080p60 原唱 / 伴奏视频 | [kara-templater](https://github.com/sitiyou/python-kara-templater) · [投稿指南](docs/publishing.md) |
+
+每首歌曲目录都会自动维护进度记录，随时可从任意阶段续作；本机素材库、字体习惯与模板收藏可保存在 [本地偏好](docs/preferences.md)。
+
+<details>
+<summary><b>进阶：从 Python 直接导出</b></summary>
+
+在仓库根目录可直接把打好轴的 `.nto` 导出为字幕着色器：
 
 ```sh
 ~/.vibekara/.venv/bin/python skills/vibekara-export/assets/render_hook.py song.nto lyrics.hook
 ```
 
-自定义导出时，将本仓库的 `skills/vibekara-export/assets` 加入 Python 的模块搜索路径，再导入 [import_nto.py](skills/vibekara-export/assets/import_nto.py)。`load_nto()` 直接把保存的 `.nto` 读成内存里的 `Document`，包含歌词、分段读音、章节、声部和 BPM。导出脚本决定使用哪些字体、轨道、特效和输出格式。
+需要自定义样式时，将 `skills/vibekara-export/assets` 加入 `sys.path` 后调用 [`load_nto()`](skills/vibekara-export/assets/import_nto.py)：
 
 ```python
 from kara_templater import KaraokeEffects, Style, Track, build_lyric_scene
@@ -54,6 +86,7 @@ from import_nto import load_nto
 
 document = load_nto(
     "song.nto",
+    harmony_tracks="1",
     styles=(Style(name="default", fontname="sans-serif", fontsize=96),),
 )
 scene = build_lyric_scene(
@@ -63,18 +96,21 @@ scene = build_lyric_scene(
 scene.export("lyrics.hook")
 ```
 
-`document.lyric_sources` 提供逐行歌词，`source.actor` 是 MIDI 渠道编号的字符串。需要提前 100 ms 时传 `offset_ms=-100`。如果用 `harmony_tracks="1"` 将渠道 1 标为 `top`，自定义样式里也可定义同名样式供和声轨选择。
+</details>
 
-## For AI agents
+---
 
-整曲制作和旧工程续作先读 [vibekara 总流程](skills/vibekara/SKILL.md)。用户只请求某个阶段时，直接进入相应指南。
+## For AI Agents
+
+整曲制作或续作先读 [vibekara 总流程](skills/vibekara/SKILL.md)，单阶段任务直接进入对应入口：
 
 | 任务 | Skill 入口 |
 | --- | --- |
-| 查找素材、核对录音版本和音画起点 | [vibekara-assets](skills/vibekara-assets/SKILL.md) |
-| 对齐歌词、读音和音符 | `deps/namioto/skills/namioto-nicokara/SKILL.md` |
-| 编写字体、排版和动效模板 | `deps/kara-templater/skills/kara-templater/SKILL.md` |
-| 发布候选方案、接收截帧反馈和采用参数 | [kara-previwer](skills/kara-previwer/SKILL.md) |
-| 从打轴工程或采用快照重建整曲 | [vibekara-export](skills/vibekara-export/SKILL.md) |
+| 整曲编排、续作与进度记录 | [skills/vibekara/SKILL.md](skills/vibekara/SKILL.md) |
+| 素材查找、版本核对与音画对齐 | [skills/vibekara-assets/SKILL.md](skills/vibekara-assets/SKILL.md) |
+| 歌词、读音、多声部打轴 | `deps/namioto/skills/namioto-nicokara/SKILL.md` |
+| 字幕排版、粒子与着色器模板 | `deps/kara-templater/skills/kara-templater/SKILL.md` |
+| 浏览器评审、反馈修订与快照 | [skills/kara-previwer/SKILL.md](skills/kara-previwer/SKILL.md) |
+| 整曲构建与视频合成 | [skills/vibekara-export/SKILL.md](skills/vibekara-export/SKILL.md) |
 
-评审采用后保存可重建快照。续作时可从快照补建 Hook 或继续合成缺失的视频。[评审脚本与事件](kara-previwer/README.md#for-ai-agents)
+评审脚本与事件协议见 [kara-previwer/README.md](kara-previwer/README.md#for-ai-agents)。
