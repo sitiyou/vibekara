@@ -64,7 +64,7 @@ def namioto_wheel_url(version: str) -> str:
     if sys.platform == "win32":
         wheel_platform = "win_amd64"
     elif sys.platform.startswith("linux"):
-        wheel_platform = "manylinux_2_28_x86_64"
+        wheel_platform = "manylinux_2_34_x86_64"
     else:
         raise ValueError("Namioto release wheels are available for Linux and Windows.")
 

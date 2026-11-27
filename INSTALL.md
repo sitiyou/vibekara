@@ -4,7 +4,7 @@
 
 ## Linux
 
-预编译安装支持 x86-64 和 glibc 2.28 或更新版本。
+预编译安装支持 x86-64 和 glibc 2.34 或更新版本。
 
 ```sh
 git clone https://github.com/sitiyou/vibekara.git "$HOME/.vibekara/checkout"
