@@ -20,6 +20,7 @@ from kara_templater import (
     TextRun,
     TimedTextSpan,
 )
+from namioto.document import OVERLAP_SLACK
 from namioto.karaoke.song_input import TimedLyrics, build_song, load_project_input
 
 from .song_settings import read_song_settings
@@ -39,8 +40,16 @@ class TextUnit:
     ruby_continuation: bool = False
 
     def __post_init__(self):
-        if any(a.end_ms > b.start_ms for a, b in zip(self.segments, self.segments[1:], strict=False)):
-            raise ValueError(f"overlapping segments in {self.text!r}")
+        segments = list(self.segments)
+        for index, (previous, current) in enumerate(zip(self.segments, self.segments[1:], strict=False)):
+            if previous.end_ms <= current.start_ms:
+                continue
+            if current.start_ms < max(previous.start_ms, previous.end_ms - OVERLAP_SLACK * 1000):
+                raise ValueError(f"overlapping segments in {self.text!r}")
+            # Namioto may round starts and durations independently when it saves a project.
+            # Keep the next attack and trim the previous release to the shared boundary.
+            segments[index] = replace(previous, end_ms=current.start_ms)
+        object.__setattr__(self, "segments", tuple(segments))
 
 
 @dataclass(frozen=True)
@@ -270,7 +279,12 @@ def template_song(
     return TemplateSong(tuple(sources), timing.bpm, source_tracks, source_channels, palette)
 
 
-def load_project_song(path: str | Path, *, offset_ms: int = 0, harmony_tracks: str = "") -> TemplateSong:
+DEFAULT_OFFSET_MS = -100
+
+
+def load_project_song(
+    path: str | Path, *, offset_ms: int = DEFAULT_OFFSET_MS, harmony_tracks: str = ""
+) -> TemplateSong:
     roles = {}
     for entry in harmony_tracks.split(","):
         track = entry.strip()

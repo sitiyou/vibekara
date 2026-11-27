@@ -17,7 +17,7 @@ description: 从 Namioto 工程和模板或评审采用快照构建整曲 Hook�
 | `.nto` 和指定设计 | 在导出脚本中调用 [`load_nto()`](assets/import_nto.py)，将返回的 `Document` 交给模板。脚本定义样式、轨道、特效和输出格式。已为评审注册的模板可用 `--script TEMPLATE.py --template ID` 构建整曲。 |
 | 已采用快照 | 用 Python 运行 [rebuild_hook.py](../../kara-previwer/scripts/rebuild_hook.py) `APPROVED lyrics.hook`。重建沿用快照帧率，换解释器时加 `--python`。有采用事件但缺快照时，由评审阶段补齐。 |
 
-直接构建用 `--fps` 覆盖默认帧率，按需使用 `--offset-ms` 和 `--harmony-tracks`。采用方案改变交付帧率时，从同一采用事件保存对应帧率的新快照，然后重建。回放抽查首次入唱、声部交接、换行和实际字体覆盖。
+直接构建用 `--fps` 覆盖默认帧率，默认使用与预览一致的 `--offset-ms -100`（提前 100 ms 显示扫色，保证所见即所得），按需覆盖 `--offset-ms` 和 `--harmony-tracks`。采用方案改变交付帧率时，从同一采用事件保存对应帧率的新快照，然后重建。回放抽查首次入唱、声部交接、换行和实际字体覆盖。
 
 自定义导出见 [Python 示例](../../README.md#从-python-导入-namioto-工程)。
 

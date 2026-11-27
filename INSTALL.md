@@ -1,6 +1,6 @@
 # 安装 vibekara
 
-先准备 [Git](https://git-scm.com/install)、[uv](https://docs.astral.sh/uv/getting-started/installation/) 和 C++17 工具链。uv 会在 `~/.vibekara/.venv` 创建共享 Python 环境。安装脚本按 Namioto 的 `pyproject.toml` 从 submodule 源码安装 CPU 版本，并从 PyPI 安装与 kara-templater submodule 对应的 wheel。两个 submodule 也提供对应版本的文档、示例和 Skill。
+先准备 Git、uv 和 C++17 工具链。uv 会在 `~/.vibekara/.venv` 创建共享 Python 环境。安装脚本从 submodule 源码安装 Namioto，按本机显卡选择分析后端，并从 PyPI 安装与 kara-templater submodule 对应的 wheel。两个 submodule 也提供对应版本的文档、示例和 Skill。 [安装 Git](https://git-scm.com/install) · [安装 uv](https://docs.astral.sh/uv/getting-started/installation/)
 
 ## Linux
 
@@ -24,17 +24,34 @@ uv run --no-project --python '>=3.11' scripts/setup.py
 
 安装脚本打印环境解释器和 Skill 目录。默认将六个 Skill 链接到 `~/.agents/skills`，Windows 使用目录联接。其他宿主可传 `--skills-dir 路径` 或设置 `AGENT_SKILLS_DIR`。重新打开 agent 会话后，可以让 agent 使用 `vibekara` 开始制作。
 
+## 安装人声分离工具
+
+人声分离使用 pymss CLI。按上游 README 安装到 `~/.vibekara/pymss/`，使用该目录下独立的 `.venv`。设置了 `VIBEKARA_HOME` 时，用其 `pymss/` 子目录。已有可用安装时，可以把现有安装目录链接到这个位置。 [pymss 安装说明](https://github.com/pymss-project/pymss#install)
+
 ## 安装位置
 
 | 路径 | 内容 |
 | --- | --- |
 | `~/.vibekara/checkout/` | vibekara 和两个 submodule |
 | `~/.vibekara/.venv/` | 三个仓库共用的 Python 环境 |
+| `~/.vibekara/pymss/` | 人声分离工具及其独立的 Python 环境 |
 | `~/.vibekara/preferences.md`、`templates/` | 偏好与模板收藏 |
 | `~/.vibekara/review/` | 本地评审会话 |
 | `~/.vibekara/projects/` | 未指定目录时新建的歌曲工程 |
 
 用户指定的歌曲目录可以原地续作。Namioto 继续沿用已有设置和模型，uv 缓存也沿用原位置。需要换目录时，设置绝对路径 `VIBEKARA_HOME`，将上面命令里的 checkout 放到对应位置，并在运行 Skill 和评审服务时沿用同一变量。
+
+## Namioto 的分析设备
+
+vibekara 在安装时按显卡选择 Namioto 的推理后端，适用于自动扒谱、人声对齐等任务。有 NVIDIA 显卡就选 CUDA，有其他显卡就选 WebGPU，无 GPU 才选 CPU。安装脚本会打印选中的后端。独立安装 Namioto 时，可以在其 checkout 中使用表中的命令。
+
+| 后端 | 适用情况 | 安装命令 |
+| --- | --- | --- |
+| CPU | 没有 GPU | `uv sync --extra cpu` |
+| CUDA | NVIDIA 显卡且已备齐与 `onnxruntime-gpu` 版本匹配的 CUDA 和 cuDNN | `uv sync --extra cuda` |
+| WebGPU | 希望用 AMD、Intel 或 NVIDIA 显卡加速，且系统有可用的图形驱动。Linux 需要 Vulkan | `uv sync --extra webgpu` |
+
+每个环境选择一种后端。CUDA 和其他两种后端使用的 ONNX Runtime 包不能在同一环境中叠装。安装 GPU 后端后，在 Namioto 的「设置 → 设备」中确认所选后端可用，再用同一段音频比较 GPU 和 CPU 的推理耗时。 [Namioto 设备说明](https://github.com/sitiyou/namioto/blob/main/docs/cli.md#devices-and-models) · [CUDA 版本要求](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements) · [WebGPU 平台支持](https://onnxruntime.ai/docs/execution-providers/WebGPU-ExecutionProvider.html)
 
 ## 制作时需要的工具
 
@@ -50,8 +67,8 @@ uv run --no-project --python '>=3.11' scripts/setup.py
 uv run --no-project --python '>=3.11' scripts/setup.py --build-kara-templater
 ```
 
-## 更新与迁移
+## 升级
 
-在安装时使用的 checkout 中运行 `git pull --ff-only`，再执行同一条 setup 命令。需要更换 `.venv` 的 Python 时，可以先将 `.venv` 改名备份，再重跑 setup。若旧安装的同名 Skill 链接指向另一份 checkout，先核对这些链接的目标，再移走它们并重跑 setup。
+在安装时使用的 checkout 中先用 `git rev-parse HEAD` 记下当前提交，再运行 `git pull --ff-only --no-recurse-submodules`。拉取成功后，用 `git diff --name-only 旧提交 HEAD -- deps/namioto deps/kara-templater scripts/setup.py` 检查 submodule 的固定提交和安装脚本，将 `旧提交` 换成之前记下的提交。
 
-旧安装的偏好和收藏通常在 `~/.config/vibekara/`，设置过 `XDG_CONFIG_HOME` 时在其 `vibekara/` 子目录。可以把 `preferences.md` 和 `templates/` 一并复制到新目录。若新目录已有偏好，先合并内容。旧评审可继续用 `--root ~/.local/state/kara-previwer` 打开。需要迁移时，停止旧评审服务，再把整个旧评审目录复制到 `~/.vibekara/review/`。换过解释器的采用快照可通过 `rebuild_hook.py --python` 指定新路径。 [评审恢复与构建](kara-previwer/README.md#事件恢复与构建)
+如果命令列出任一路径，沿用安装时的参数重跑 setup。安装脚本会将两个 submodule 检出到 vibekara 指定的提交，并同步共享 uv 环境。无输出时，`git pull` 即完成升级。升级中断或更换显卡后，可以重跑 setup 完成同步。

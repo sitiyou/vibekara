@@ -77,7 +77,7 @@ class SceneCacheTest(unittest.TestCase):
                 {"script": "v2"},
                 {"krc": "v2"},
                 {"midi": "v2"},
-                {"offset_ms": -100},
+                {"offset_ms": 0},
                 {"colors": {"0": "red"}},
                 {"values": {"size": 110}},
             ]:

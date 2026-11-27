@@ -15,7 +15,7 @@ def main() -> None:
     parser.add_argument("--template", help="recipe ID for --script")
     parser.add_argument("--set", dest="parameters", action="append", default=[], metavar="KEY=VALUE")
     parser.add_argument("--fps", type=int, default=60)
-    parser.add_argument("--offset-ms", type=int, default=0)
+    parser.add_argument("--offset-ms", type=int, default=-100)
     parser.add_argument("--harmony-tracks", default="", help="comma-separated MIDI channels for harmony")
     args = parser.parse_args()
     if not 1 <= args.fps <= 240:

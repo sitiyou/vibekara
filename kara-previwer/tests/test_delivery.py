@@ -76,6 +76,29 @@ class DeliveryTest(unittest.TestCase):
             self.assertAlmostEqual(second.timing.start, 1.9)
             self.assertIsNotNone(first.ruby)
 
+    def test_saved_ruby_notes_can_touch_within_namioto_tolerance(self):
+        try:
+            from kara_previwer.timing import load_project_song
+            from namioto import project
+        except ImportError:
+            self.skipTest("requires the Namioto and kara-templater rendering environment")
+        with tempfile.TemporaryDirectory() as tmp:
+            saved = Path(tmp) / "song.nto"
+            for second_start in (32.9462, 32.9461):
+                with self.subTest(second_start=second_start):
+                    project.save(project.Project(
+                        lyrics=project.Lyrics(text="京[きょう]"),
+                        notes=(
+                            project.Note(32.6236, 0.3226, 60, 0),
+                            project.Note(second_start, 0.1613, 62, 0),
+                        ),
+                    ), saved)
+                    song = load_project_song(saved, offset_ms=0)
+                    first, second = song.sources[0].lyrics.units[0].segments
+                    self.assertEqual(first.timing.end, second.timing.start)
+                    self.assertAlmostEqual(second.timing.start, second_start)
+                    self.assertAlmostEqual(second.timing.end, second_start + 0.1613)
+
     def test_snapshot_keeps_timing_and_can_retry_a_failed_hook_build(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

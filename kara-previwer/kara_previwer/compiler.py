@@ -43,15 +43,18 @@ def load_project_song(path, offset_ms, harmony_tracks):
     return read_project_song(path, offset_ms=offset_ms, harmony_tracks=harmony_tracks)
 
 
+DEFAULT_OFFSET_MS = -100
+
+
 def timing_key(job):
     if "project" in job:
-        return (job["project"], job.get("offset_ms", 0), job.get("harmony_tracks", ""))
+        return (job["project"], job.get("offset_ms", DEFAULT_OFFSET_MS), job.get("harmony_tracks", ""))
     if "song_input" in job:
         return (job["song_input"],)
     return (
         job["krc"],
         job["midi"],
-        job.get("offset_ms", 0),
+        job.get("offset_ms", DEFAULT_OFFSET_MS),
         tuple(sorted((int(k), v) for k, v in job.get("colors", {}).items())),
         job.get("wavetone", False),
         tuple(sorted((int(k), v) for k, v in job.get("track_style", {}).items())),

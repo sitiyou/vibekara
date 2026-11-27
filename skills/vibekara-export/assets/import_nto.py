@@ -18,7 +18,7 @@ def load_nto(
     width: int = 1920,
     height: int = 1080,
     styles: tuple[Style, ...] = (),
-    offset_ms: int = 0,
+    offset_ms: int = -100,
     harmony_tracks: str = "",
 ) -> Document:
     """Load timed lyrics, ruby, chapters, vocal tracks and BPM from a saved project.

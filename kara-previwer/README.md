@@ -51,7 +51,7 @@ python kara-previwer/scripts/rebuild_hook.py song/approved lyrics.hook
 }
 ```
 
-整曲交付需要可编译方案。`compiler.project` 指向保存好的 `.nto`，`compiler.python` 填写[安装脚本](../INSTALL.md)返回的解释器路径，或复用已验证的编译环境。可选 `offset_ms` 设置交付偏移，默认 0。`harmony_tracks` 可列出逗号分隔的和声 MIDI 渠道。服务在发布时复制可信模板、资源和工程。采用快照保留这些输入和构建规格。模板注册范例见[基础模板](../skills/vibekara-export/assets/template.py)。
+整曲交付需要可编译方案。`compiler.project` 指向保存好的 `.nto`，`compiler.python` 填写[安装脚本](../INSTALL.md)返回的解释器路径，或复用已验证的编译环境。可选 `offset_ms` 设置预览与交付偏移，默认 `-100`（提前 100 ms 显示扫色，预览与导出保持一致，所见即所得）。`harmony_tracks` 可列出逗号分隔的和声 MIDI 渠道。服务在发布时复制可信模板、资源和工程。采用快照保留这些输入和构建规格。模板注册范例见[基础模板](../skills/vibekara-export/assets/template.py)。
 
 ```json
 {
@@ -145,7 +145,7 @@ python kara-previwer/scripts/rebuild_hook.py song/approved lyrics.hook
 
 省略 `segment_frames` 会在发布时编译整个预览范围。浏览器加载一次着色器与纹理，播放与拖动直接使用媒体时间。字体、排版等几何修改会触发重新编译。
 
-若采用按需分段，例如 30 fps 时，`segment_frames: 240` 每段覆盖 8 秒，`entry_frame: 420` 打开在媒体第 14 秒。使用可重建的外部模板，保留背景图作为初始画面。网页按播放位置请求字幕、预取下一段，并以原曲时间记录截帧。导出采用版本时会重新编译整曲。旧的固定片段仍可使用原格式。
+若采用按需分段，例如 30 fps 时，`segment_frames: 240` 每段覆盖 8 秒，`entry_frame: 420` 打开在媒体第 14 秒。使用可重建的外部模板，保留背景图作为初始画面。网页按播放位置请求字幕、预取下一段，并以原曲时间记录截帧。导出采用版本时会重新编译整曲。
 
 整曲时间轴始终对应原曲媒体。字号等数值滑块在拖动时同步显示数值，松手后先请求播放位置附近的字幕，再预取下一段。播放期间并行加载下一段。时间轴跳到未缓存的位置时，服务按目标区间编译。WebGL 调色参数可以复用原有几何。
 

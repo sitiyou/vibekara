@@ -101,7 +101,7 @@ ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 aligned.wav
 
 ## 分离人声与伴奏
 
-自动转录旋律或对齐歌词时，优先使用已有的同版独立人声轨。只有混音时，用 `pymss` 从最终原唱提取人声，交给 Namioto 做分析。纯手动打轴可以直接使用原唱混音。[pymss 安装说明](https://github.com/pymss-project/pymss#install)
+自动转录旋律或对齐歌词时，优先使用已有的同版独立人声轨。只有混音时，用 `pymss` 从最终原唱提取人声，交给 Namioto 做分析。纯手动打轴可以直接使用原唱混音。 [安装人声分离工具](../INSTALL.md#安装人声分离工具)
 
 伴奏版有同版官方伴奏时，使用对齐后的官方音轨。只有缺少同版官方伴奏时，才采用经试听核对的分离伴奏。即使为打轴分离过人声，伴奏版依然按这条规则选音轨。
 
@@ -111,7 +111,7 @@ ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 aligned.wav
 | 缺少同版官方伴奏，且默认模型的伴奏有明显残留人声 | `bs_roformer_inst_hyperacev2` | 从原唱混音提取 `instrument`，对照试听残留人声和乐器细节。 |
 | 主唱和和声重叠，影响单声部打轴 | `model_mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956` | 用已提取的 `Vocals` 再分离，分别试听 `karaoke`（主唱）和 `other`（剩余声部）。 |
 
-用已有 `pymss` 和模型缓存从原唱混音分离。缺少工具时运行 `pip install pymss`，推理会下载缺少的权重和配置。[pymss 推理用法](https://github.com/pymss-project/pymss#cli-inference) · [模型目录](https://github.com/pymss-project/pymss/blob/main/pymss/resources/model_catalog.json)
+在 pymss 的独立环境中运行 CLI，复用已有模型缓存。推理会下载缺少的权重和配置。 [pymss 推理用法](https://github.com/pymss-project/pymss#cli-inference) · [模型目录](https://github.com/pymss-project/pymss/blob/main/pymss/resources/model_catalog.json)
 
 ```sh
 pymss infer model_bs_roformer_ep_368_sdr_12.9628 --source huggingface \

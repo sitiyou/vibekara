@@ -5,7 +5,7 @@ description: 在浏览器交给用户审核首次制作或修改的 karaoke 字�
 
 # 评审外部模板
 
-使用已保存的 `.nto` 和对齐后的媒体提交样式审核。模板设计参见 `kara-templater` 作者指南。评审和整曲导出复用同一个 Scene 构建函数。后续需要整曲交付时，从第一版起就用 `register(registry)` 注册可编译模板，并在方案中填写 `compiler.project`。[可运行模板](../vibekara-export/assets/template.py) · [方案格式](../../kara-previwer/README.md#方案文件)
+使用已保存的 `.nto` 和对齐后的媒体提交样式审核。模板设计参见 `kara-templater` 作者指南。评审和整曲导出复用同一个 Scene 构建函数，默认统一使用 `offset_ms: -100`（提前 100 ms 显示扫色，保证预览与成片所见即所得；仅在用户明确指定其他偏移时覆盖）。后续需要整曲交付时，从第一版起就用 `register(registry)` 注册可编译模板，并在方案中填写 `compiler.project`。[可运行模板](../vibekara-export/assets/template.py) · [方案格式](../../kara-previwer/README.md#方案文件)
 
 优先沿用已验证的编译环境。首次缺少环境时，按[安装教程](../../INSTALL.md)配置共享 uv 环境，并将返回的解释器填入 `compiler.python`。
 

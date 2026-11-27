@@ -33,9 +33,9 @@ vibekara 是给 AI agent 制作卡拉 OK 用的 skill。把歌曲和手头的素
 
 ```text
 请从 https://github.com/sitiyou/vibekara 安装 vibekara。先阅读仓库的 INSTALL.md，
-复用本机已有工具，按默认路径配置 uv 环境并为当前 agent 注册 Skill。
+复用本机已有工具，按默认路径配置 uv 环境、安装 pymss 并为当前 agent 注册 Skill。
 如果缺少需要管理员权限的系统依赖，请告诉我具体缺项和安装入口。
-环境和 Skill 配好后，告诉我 checkout、Python 解释器和 Skill 的位置。
+安装完成后，告诉我 checkout、Python 解释器、pymss 和 Skill 的位置。
 ```
 
 ## 从 Python 导入 Namioto 工程
