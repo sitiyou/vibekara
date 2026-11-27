@@ -31,13 +31,11 @@
 
 ### 1. 安装
 
-先备好 Git、[uv](https://docs.astral.sh/uv/getting-started/installation/) 和 FFmpeg，然后把下面这段话直接发给你的 AI Agent（手动步骤与平台细节见 [INSTALL.md](INSTALL.md)）：
+把下面这段话发给你的 AI Agent，也可以按[安装向导](INSTALL.md)手动安装。
 
 ```text
-请从 https://github.com/sitiyou/vibekara 安装 vibekara。先阅读仓库的 INSTALL.md，
-复用本机已有工具，按默认路径配置 uv 环境、安装 pymss 并为当前 agent 注册 Skill。
-如果缺少需要管理员权限的系统依赖，请告诉我具体缺项和安装入口。
-安装完成后，告诉我 checkout、Python 解释器、pymss 和 Skill 的位置。
+请按 https://github.com/sitiyou/vibekara/blob/main/INSTALL.md 安装 vibekara，
+复用本机已有工具，并为当前 Agent 注册 Skill。完成后告诉我安装结果。
 ```
 
 ### 2. 开始制作

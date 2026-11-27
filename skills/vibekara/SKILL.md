@@ -11,7 +11,7 @@ description: 组织整曲 karaoke 制作或从歌曲目录续作。根据用户�
 
 新项目有能定位录音的文件、链接或曲目信息即可开始。打开对应阶段前，按交付目标核对必要输入，并让素材阶段补本次缺项。[最低输入及格式](../../docs/media.md#可以提供什么)
 
-打轴、评审或导出时，复用已核实的项目环境。首次缺少环境时，按[安装教程](../../INSTALL.md)配置共享 uv 环境。
+打轴、评审或导出时，复用已核实的项目环境。首次部署时，按[安装向导](../../INSTALL.md)运行 `uv run --no-project --python 3.14 scripts/setup.py`。共享环境固定使用 CPython 3.14，从 GitHub Release 安装 Namioto wheel，从 PyPI 安装 kara-templater wheel。两个上游子模块固定在对应发布 tag 的提交，供查阅 Skill、文档和源码。安装脚本自动选择 CPU、CUDA 或 WebGPU。独立安装 Namioto 并手动指定后端时，按[预编译 wheel 的安装步骤](../../INSTALL.md#用预编译-wheel-手动选择后端)添加对应的 extra。
 
 查找额外工具、媒体库或默认样式时，先读本地 `preferences.md`。只有用户明确要求长期保存时才更新偏好。[查找和复用工具](../../docs/preferences.md#查找本机工具)
 

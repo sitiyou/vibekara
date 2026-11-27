@@ -12,6 +12,8 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+PYTHON_VERSION = "3.14"
+PYTHON_ABI = f"cp{PYTHON_VERSION.replace('.', '')}"
 sys.path.insert(0, str(ROOT / "kara-previwer"))
 
 from kara_previwer.paths import vibekara_home
@@ -68,7 +70,7 @@ def namioto_wheel_url(version: str) -> str:
     else:
         raise ValueError("Namioto release wheels are available for Linux and Windows.")
 
-    filename = f"namioto-{version}-cp314-cp314-{wheel_platform}.whl"
+    filename = f"namioto-{version}-{PYTHON_ABI}-{PYTHON_ABI}-{wheel_platform}.whl"
     return f"https://github.com/sitiyou/namioto/releases/download/v{version}/{filename}"
 
 
@@ -77,9 +79,25 @@ def install(uv: str, namioto: Path, templater: Path, *, backend: str, build_temp
     wheel = namioto_wheel_url(project["version"])
     venv = vibekara_home() / ".venv"
     python = venv / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-    if not python.is_file():
+    if python.is_file():
+        installed_python = subprocess.check_output(
+            [
+                python, "-c",
+                "import platform, sysconfig; "
+                "version = '.'.join(platform.python_version_tuple()[:2]); "
+                "abi = 't' if sysconfig.get_config_var('Py_GIL_DISABLED') else ''; "
+                "print(platform.python_implementation(), version + abi)",
+            ],
+            text=True,
+        ).strip()
+        if installed_python != f"CPython {PYTHON_VERSION}":
+            raise ValueError(
+                f"{venv} uses {installed_python}. Move it aside and rerun setup "
+                f"to create a CPython {PYTHON_VERSION} environment."
+            )
+    else:
         subprocess.run(
-            [uv, "venv", "--no-project", "--python", project["requires-python"], venv],
+            [uv, "venv", "--no-project", "--python", f"cpython@{PYTHON_VERSION}", venv],
             check=True,
         )
 
